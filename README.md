@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Deal Service Dashboard
 
-## Getting Started
+A Next.js dashboard for searching Freshsales deals, managing multiple linked service records in MongoDB, creating one Freshsales CPQ product per service, and attaching those products back to the selected deal.
 
-First, run the development server:
+## Environment
+
+Create a `.env.local` file with:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+MONGODB_URI=mongodb://127.0.0.1:27017/bedrock
+FRESHSALES_BASE_URL=https://YOUR_DOMAIN.myfreshworks.com
+FRESHSALES_API_KEY=your_freshsales_api_key
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Run locally
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Notes
 
-## Learn More
+- MongoDB data is stored in the `deal_services` collection.
+- Each service is stored as an individual document with a UUID `id`.
+- Freshsales deal search uses `GET /crm/sales/api/search?q=...&include=deal`.
+- Freshsales product creation uses `POST /crm/sales/api/cpq/products`.
+- Freshsales product updates use `PUT /crm/sales/api/cpq/products/{product_id}`.
+- Freshsales product pricing is synced with `PUT /crm/sales/api/cpq/products/{product_id}?include=product_pricings`.
+- Freshsales deal-product sync uses `PUT /crm/sales/api/deals/{deal_id}?include=products`.
+- Every service row stores its own `price`, syncs a USD product price, and then attaches to the deal as a product line item with `quantity: 1`.
+- The selected Freshsales deal must also be in USD, or Freshsales will reject the product attachment.
 
-To learn more about Next.js, take a look at the following resources:
+## Freshsales Product Custom Fields
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Create these custom fields on the Freshsales Product form:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `cf_service_category`
+- `cf_service_sub_category`
+- `cf_universal_platform`
+- `cf_base_service_name`
+- `cf_flavors`
+- `cf_service_specific_enhancements`
+- `cf_aui`
+- `cf_updated_main_machine`
+- `cf_updated_machine_2`
+- `cf_updated_machine_3`
+- `cf_final_value`
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The exact field mapping constants live in `lib/freshsales-product-fields.ts`.
