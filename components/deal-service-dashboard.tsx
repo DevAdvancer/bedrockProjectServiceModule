@@ -703,8 +703,6 @@ export default function DealServiceDashboard() {
   const [isLoadingServices, setIsLoadingServices] = useState(false);
   const [isCreatingService, setIsCreatingService] = useState(false);
 
-  const deferredSearchQuery = useDeferredValue(searchQuery);
-
   const runDealSearch = useEffectEvent(async (query: string, signal: AbortSignal) => {
     setSearchState("saving");
     setSearchNote("Searching deals...");
@@ -720,13 +718,21 @@ export default function DealServiceDashboard() {
       }
 
       startTransition(() => {
-        setSearchResults(data.deals);
-        setSearchState("idle");
-        setSearchNote(
-          data.deals.length > 0
-            ? "Select a deal to start managing services."
-            : "No matching deals found for that search.",
-        );
+        if (data.deals.length === 1) {
+          void loadServicesForDeal(data.deals[0]);
+          setSearchQuery("");
+          setSearchResults([]);
+          setSearchState("idle");
+          setSearchNote("Deal loaded.");
+        } else {
+          setSearchResults(data.deals);
+          setSearchState("idle");
+          setSearchNote(
+            data.deals.length > 0
+              ? "Select a deal to start managing services."
+              : "No matching deals found for that search.",
+          );
+        }
       });
     } catch (error) {
       if (signal.aborted) {
@@ -738,20 +744,6 @@ export default function DealServiceDashboard() {
       setSearchResults([]);
     }
   });
-
-  useEffect(() => {
-    if (deferredSearchQuery.trim().length < 2) {
-      setSearchResults([]);
-      setSearchState("idle");
-      setSearchNote("Search by deal name to get started.");
-      return;
-    }
-
-    const controller = new AbortController();
-    void runDealSearch(deferredSearchQuery.trim(), controller.signal);
-
-    return () => controller.abort();
-  }, [deferredSearchQuery]);
 
   async function loadServicesForDeal(deal: DealSearchResult) {
     setSelectedDeal(deal);
@@ -1099,15 +1091,43 @@ export default function DealServiceDashboard() {
           </div>
 
           {/* Search */}
-          <div className="relative hidden min-w-[240px] max-w-sm flex-1 sm:block">
+          <form 
+            className="relative hidden min-w-[240px] max-w-sm flex-1 sm:block"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const query = searchQuery.trim();
+              if (query.length > 0) {
+                void loadServicesForDeal({ id: query, name: query } as DealSearchResult);
+                setSearchQuery("");
+                setSearchResults([]);
+              }
+            }}
+          >
             <svg viewBox="0 0 20 20" fill="currentColor" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#504442]/40">
               <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
             </svg>
             <input
               type="search"
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search deals…"
+              onPaste={(e) => {
+                const pastedText = e.clipboardData.getData("Text").trim();
+                // Extract ID if they paste a full freshsales URL
+                const idMatch = pastedText.match(/(?:deals\/)?(\d{10,15})/);
+                const finalId = idMatch ? idMatch[1] : pastedText;
+                
+                if (finalId.length > 0) {
+                  setSearchQuery(finalId);
+                  void loadServicesForDeal({ id: finalId, name: finalId } as DealSearchResult);
+                  setTimeout(() => setSearchQuery(""), 100);
+                }
+              }}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                if (event.target.value.trim() === "") {
+                  setSearchResults([]);
+                }
+              }}
+              placeholder="Paste exact deal name here…"
               className="w-full rounded-lg border border-[#d3c3c0]/30 bg-white/60 py-2 pl-10 pr-4 text-sm text-[#271310] outline-none transition placeholder:text-[#504442]/40 focus:border-[#271310] focus:ring-1 focus:ring-[#271310]"
             />
 
@@ -1137,7 +1157,7 @@ export default function DealServiceDashboard() {
                 )}
               </div>
             ) : null}
-          </div>
+          </form>
 
           {/* Selected deal + Account */}
           <div className="ml-auto flex items-center gap-4">

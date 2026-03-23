@@ -26,11 +26,14 @@ export async function connectToDatabase() {
 
   if (!mongoUri) {
     throw new HttpError(500, "MONGODB_URI is not configured.");
+  } else {
+    console.log("MONGODB_URI is configured.", mongoUri);
   }
 
   if (!cached.promise) {
     cached.promise = mongoose.connect(mongoUri, {
       bufferCommands: false,
+      family: 4,
     });
   }
 
