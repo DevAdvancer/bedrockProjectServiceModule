@@ -1,21 +1,20 @@
 import type { Metadata } from "next";
-import { DM_Sans, IBM_Plex_Mono } from "next/font/google";
+import { Manrope, Inter } from "next/font/google";
 import "./globals.css";
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
 });
 
-const plexMono = IBM_Plex_Mono({
-  variable: "--font-plex-mono",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
-  title: "CrepesALatte — Deal Service Dashboard",
-  description: "Manage multiple service records per deal and sync them to Freshsales.",
+  title: "CrepesALatte — Service Studio",
+  description: "Configure and manage deal services for CrepesALatte.",
 };
 
 export default function RootLayout({
@@ -25,7 +24,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${dmSans.variable} ${plexMono.variable}`}>
+      <body className={`${manrope.variable} ${inter.variable}`}>
         {children}
       </body>
     </html>
