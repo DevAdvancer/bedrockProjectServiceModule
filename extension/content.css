@@ -1,0 +1,68 @@
+/* content.css - Injected into host page */
+
+.crepesalatte-extension-fab {
+  position: fixed;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  background: #271310;
+  border-radius: 8px 0 0 8px;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  z-index: 2147483646;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: right 0.3s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.2s;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: none;
+}
+
+.crepesalatte-extension-fab:hover {
+  background: #3e2723;
+}
+
+.crepesalatte-extension-fab img {
+  width: 24px;
+  height: 24px;
+}
+
+/* Sidebar Wrapper */
+.crepesalatte-extension-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 600px;
+  max-width: 100vw;
+  background: #fdf9f6;
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.15);
+  z-index: 2147483647;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(0,0,0,0.1);
+}
+
+.crepesalatte-extension-sidebar.open {
+  transform: translateX(0);
+}
+
+.crepesalatte-extension-sidebar iframe {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+}
+
+/* Shift FAB when sidebar is open */
+.crepesalatte-extension-fab.shifted {
+  right: 600px;
+  border-radius: 8px 0 0 8px;
+  opacity: 0;
+  pointer-events: none;
+}

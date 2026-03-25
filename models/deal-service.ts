@@ -3,6 +3,7 @@ import mongoose, { Model, Schema } from "mongoose";
 export type DealServiceDocument = {
   id: string;
   deal_id: string;
+  deal_name: string;
   freshsales_product_id?: number;
   category: string;
   sub_category: string;
@@ -34,6 +35,12 @@ const dealServiceSchema = new Schema<DealServiceDocument>(
       required: true,
       index: true,
       trim: true,
+    },
+    deal_name: {
+      type: String,
+      default: "",
+      trim: true,
+      index: true,
     },
     freshsales_product_id: {
       type: Number,
@@ -112,6 +119,7 @@ const dealServiceSchema = new Schema<DealServiceDocument>(
 );
 
 dealServiceSchema.index({ deal_id: 1, created_at: 1 });
+dealServiceSchema.index({ deal_name: 1, created_at: 1 });
 
 const DealServiceModel =
   (mongoose.models.DealService as Model<DealServiceDocument>) ||

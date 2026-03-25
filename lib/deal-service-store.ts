@@ -13,6 +13,7 @@ import {
   deleteFreshsalesProduct,
   syncFreshsalesDealProducts,
   updateFreshsalesProduct,
+  getFreshsalesDealAndAssertUsd,
 } from "@/lib/freshsales";
 import { HttpError } from "@/lib/http-error";
 import { connectToDatabase } from "@/lib/mongodb";
@@ -25,11 +26,13 @@ type MongoDealServiceRecord = DealServiceDocument & {
 function toMongoRecord(
   id: string,
   service: DealServiceInput,
+  dealName: string,
   freshsalesProductId?: number,
 ): Omit<DealServiceDocument, "created_at" | "updated_at"> {
   return {
     id,
     deal_id: service.dealId,
+    deal_name: dealName,
     freshsales_product_id: freshsalesProductId,
     category: service.category,
     sub_category: service.subCategory,
@@ -87,7 +90,13 @@ function fromMongoRecord(record: DealServiceDocument): PersistedDealService {
 
 async function listDealServiceRecords(dealId: string) {
   await connectToDatabase();
-  return DealServiceModel.find({ deal_id: dealId })
+  
+  // Escape regex special characters in case the dealId is actually a name with brackets, etc.
+  const safeSearch = dealId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  
+  return DealServiceModel.find({
+    $or: [{ deal_id: dealId }, { deal_name: { $regex: new RegExp(`^${safeSearch}$`, "i") } }]
+  })
     .sort({ created_at: 1 })
     .lean<MongoDealServiceRecord[]>();
 }
@@ -130,6 +139,10 @@ export async function listDealServices(dealId: string) {
         finalValue: service.final_value,
       })),
     ),
+    deal: services.length > 0 ? {
+      id: services[0].deal_id,
+      name: services[0].deal_name
+    } : null,
   };
 }
 
@@ -142,6 +155,9 @@ export async function createDealService(
   preferredId?: string,
 ) {
   await connectToDatabase();
+  
+  const deal = await getFreshsalesDealAndAssertUsd(service.dealId);
+  const dealName = deal.name || service.dealId;
 
   const id = preferredId?.trim() || randomUUID();
   const existingRecord = await DealServiceModel.findOne({ id }).lean();
@@ -150,7 +166,7 @@ export async function createDealService(
     throw new HttpError(409, "That service ID already exists. Please create a new service block.");
   }
 
-  await DealServiceModel.create(toMongoRecord(id, service));
+  await DealServiceModel.create(toMongoRecord(id, service, dealName));
   let freshsalesProductId: number | undefined;
 
   try {
@@ -183,6 +199,9 @@ export async function createDealService(
 
 export async function updateDealService(id: string, service: DealServiceInput) {
   await connectToDatabase();
+  
+  const deal = await getFreshsalesDealAndAssertUsd(service.dealId);
+  const dealName = deal.name || service.dealId;
 
   const previousRecord = await DealServiceModel.findOne({ id }).lean<MongoDealServiceRecord | null>();
 
@@ -206,7 +225,7 @@ export async function updateDealService(id: string, service: DealServiceInput) {
 
     await DealServiceModel.updateOne(
       { id },
-      { $set: toMongoRecord(id, service, currentProductId) },
+      { $set: toMongoRecord(id, service, dealName, currentProductId) },
     );
 
     if (previousDealId !== service.dealId) {

@@ -8,7 +8,7 @@ import { FRESHSALES_PRODUCT_CUSTOM_FIELDS } from "@/lib/freshsales-product-field
 import { HttpError } from "@/lib/http-error";
 
 type FreshsalesErrorPayload = {
-  errors?: Array<{ message?: string }>;
+  errors?: Array<{ message?: string }> | { code?: number; message?: string[] | string };
   message?: string;
   description?: string;
 };
@@ -39,6 +39,7 @@ type FreshsalesProductDetailsResponse = {
 
 type FreshsalesDealDetailsResponse = {
   deal: {
+    name?: string;
     currency?: {
       id?: number;
       name?: string | null;
@@ -90,8 +91,24 @@ async function parseResponse<T>(response: Response) {
 
   if (!response.ok) {
     const errorPayload = parsed as FreshsalesErrorPayload | null;
+    let extractedMessage: string | undefined;
+
+    if (errorPayload?.errors) {
+      if (Array.isArray(errorPayload.errors)) {
+        extractedMessage = errorPayload.errors[0]?.message;
+      } else if (typeof errorPayload.errors === "object") {
+        const errObj = errorPayload.errors as { message?: string | string[] };
+        const msg = errObj.message;
+        if (Array.isArray(msg) && msg.length > 0) {
+          extractedMessage = msg[0];
+        } else if (typeof msg === "string") {
+          extractedMessage = msg;
+        }
+      }
+    }
+
     const message =
-      errorPayload?.errors?.[0]?.message ??
+      extractedMessage ??
       errorPayload?.message ??
       errorPayload?.description ??
       (text || undefined) ??
@@ -255,7 +272,7 @@ async function syncFreshsalesProductUsdPricing(productId: number, unitPrice: num
   );
 }
 
-async function assertFreshsalesDealUsesUsd(dealId: string) {
+export async function getFreshsalesDealAndAssertUsd(dealId: string) {
   const dealDetails = await freshsalesFetch<FreshsalesDealDetailsResponse>(
     `/crm-sandbox/sales/api/deals/${encodeURIComponent(dealId)}?include=currency`,
     {
@@ -270,6 +287,8 @@ async function assertFreshsalesDealUsesUsd(dealId: string) {
       `This deal uses ${currencyName}. The current service sync is configured for USD products only.`,
     );
   }
+  
+  return dealDetails.deal;
 }
 
 export async function searchFreshsalesDeals(query: string) {
@@ -333,7 +352,7 @@ export async function syncFreshsalesDealProducts(
   dealId: string,
   products: FreshsalesDealProductLineItem[],
 ) {
-  await assertFreshsalesDealUsesUsd(dealId);
+  await getFreshsalesDealAndAssertUsd(dealId);
 
   return freshsalesFetch(
     `/crm-sandbox/sales/api/deals/${encodeURIComponent(dealId)}?include=products`,
