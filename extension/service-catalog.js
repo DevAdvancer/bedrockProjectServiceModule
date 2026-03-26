@@ -18,15 +18,21 @@ function toNamedOptions(values) {
   return uniqueStrings(values).map(name => ({ name }));
 }
 
-function buildBaseServiceSelectionKey(category, subCategory, universalPlatform, baseServiceName) {
-  return JSON.stringify([category, subCategory, universalPlatform, baseServiceName]);
+function buildBaseServiceSelectionKey(category, subCategory, universalPlatformOrBaseServiceName, maybeBaseServiceName) {
+  const baseServiceName = typeof maybeBaseServiceName === "string"
+    ? maybeBaseServiceName
+    : universalPlatformOrBaseServiceName;
+  return JSON.stringify([category, subCategory, baseServiceName]);
 }
 
 function parseBaseServiceSelectionKey(key) {
   try {
     const parsed = JSON.parse(key);
-    if (!Array.isArray(parsed) || parsed.length !== 4 || parsed.some(v => typeof v !== "string")) return null;
-    const [category, subCategory, universalPlatform, baseServiceName] = parsed;
+    if (!Array.isArray(parsed) || ![3, 4].includes(parsed.length) || parsed.some(v => typeof v !== "string")) return null;
+    const category = parsed[0];
+    const subCategory = parsed[1];
+    const baseServiceName = parsed.length === 4 ? parsed[3] : parsed[2];
+    const universalPlatform = resolveUniversalPlatformForBaseService(category, subCategory, baseServiceName);
     return { category, subCategory, universalPlatform, baseServiceName };
   } catch {
     return null;
@@ -45,17 +51,22 @@ function getRowsForPath(category, subCategory = "", universalPlatform = "", base
 
 const SERVICE_CATALOG = toNamedOptions(rows.map(r => r.category));
 
+function resolveUniversalPlatformForBaseService(category, subCategory, baseServiceName) {
+  const platforms = uniqueStrings(getRowsForPath(category, subCategory, "", baseServiceName).map(r => r.universalPlatform));
+  return platforms[0] || "";
+}
+
 function getBaseServiceSelectionOptions(category = "", subCategory = "", universalPlatform = "") {
   const uniqueOptions = new Map();
-  for (const row of getRowsForPath(category, subCategory, universalPlatform)) {
-    const key = buildBaseServiceSelectionKey(row.category, row.subCategory, row.universalPlatform, row.baseServiceName);
+  for (const row of getRowsForPath(category, subCategory)) {
+    const key = buildBaseServiceSelectionKey(row.category, row.subCategory, row.baseServiceName);
     if (!uniqueOptions.has(key)) {
       uniqueOptions.set(key, {
         key,
         label: row.baseServiceName,
         category: row.category,
         subCategory: row.subCategory,
-        universalPlatform: row.universalPlatform,
+        universalPlatform: resolveUniversalPlatformForBaseService(row.category, row.subCategory, row.baseServiceName),
         baseServiceName: row.baseServiceName,
       });
     }

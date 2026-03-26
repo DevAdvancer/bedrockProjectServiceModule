@@ -28,12 +28,15 @@
   function checkUrlAndUpdateIframe() {
     // Ensure we only match /deals/ID and explicitly reject /deals/view/ID
     const match = window.location.href.match(/(?:deals\/)(\d+)/);
-    let popupUrl = chrome.runtime.getURL('popup.html?sidebar=true');
+    const popupUrl = new URL(chrome.runtime.getURL('popup.html'));
+    popupUrl.searchParams.set('sidebar', 'true');
     if (match && match[1]) {
-      popupUrl += '&dealId=' + match[1];
+      popupUrl.searchParams.set('dealId', match[1]);
+    } else {
+      popupUrl.searchParams.delete('dealId');
     }
-    if (iframe.src !== popupUrl) {
-      iframe.src = popupUrl;
+    if (iframe.src !== popupUrl.toString()) {
+      iframe.src = popupUrl.toString();
     }
   }
 

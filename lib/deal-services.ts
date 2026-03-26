@@ -40,6 +40,11 @@ export type PersistedDealService = DealServiceInput & {
   updatedAt?: string;
 };
 
+type FlavorEnhancementSections = {
+  flavors: string[];
+  serviceSpecificEnhancements: string[];
+};
+
 function normalizeText(value: string) {
   return value.trim();
 }
@@ -60,6 +65,125 @@ export function csvToArray(value?: string | null) {
   }
 
   return normalizeStringArray(value.split(","));
+}
+
+export function buildFlavorEnhancementsValue(
+  flavors: string[],
+  serviceSpecificEnhancements: string[],
+) {
+  const normalizedFlavors = normalizeStringArray(flavors);
+  const normalizedEnhancements = normalizeStringArray(serviceSpecificEnhancements);
+  const sections: string[] = [];
+
+  if (normalizedFlavors.length > 0) {
+    sections.push("Flavors:");
+    sections.push(...normalizedFlavors.map((value) => `- ${value}`));
+  }
+
+  if (normalizedEnhancements.length > 0) {
+    if (sections.length > 0) {
+      sections.push("");
+    }
+
+    sections.push("Enhancements:");
+    sections.push(...normalizedEnhancements.map((value) => `- ${value}`));
+  }
+
+  return sections.join("\n").trim();
+}
+
+export function parseFlavorEnhancementsValue(
+  value?: string | null,
+): FlavorEnhancementSections {
+  const rawValue = typeof value === "string" ? value.trim() : "";
+
+  if (!rawValue) {
+    return {
+      flavors: [],
+      serviceSpecificEnhancements: [],
+    };
+  }
+
+  const result: FlavorEnhancementSections = {
+    flavors: [],
+    serviceSpecificEnhancements: [],
+  };
+  let currentSection: keyof FlavorEnhancementSections | null = null;
+  const lines = rawValue
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    if (/^flavors:?$/i.test(line)) {
+      currentSection = "flavors";
+      continue;
+    }
+
+    if (/^enhancements:?$/i.test(line)) {
+      currentSection = "serviceSpecificEnhancements";
+      continue;
+    }
+
+    const listItemMatch = line.match(/^-\s+(.+)$/);
+    if (listItemMatch && currentSection) {
+      result[currentSection].push(listItemMatch[1]);
+      continue;
+    }
+  }
+
+  if (
+    result.flavors.length > 0 ||
+    result.serviceSpecificEnhancements.length > 0
+  ) {
+    return {
+      flavors: normalizeStringArray(result.flavors),
+      serviceSpecificEnhancements: normalizeStringArray(
+        result.serviceSpecificEnhancements,
+      ),
+    };
+  }
+
+  const legacySections = rawValue.split("|").map((section) => section.trim());
+
+  for (const section of legacySections) {
+    const [label, ...rest] = section.split(":");
+    const parsedValue = rest.join(":").trim();
+
+    if (!parsedValue) {
+      continue;
+    }
+
+    if (/^flavor(s)?$/i.test(label.trim())) {
+      result.flavors.push(
+        ...parsedValue.split(",").map((item) => item.trim()).filter(Boolean),
+      );
+      continue;
+    }
+
+    if (/^enhancement(s)?$/i.test(label.trim())) {
+      result.serviceSpecificEnhancements.push(
+        ...parsedValue.split(",").map((item) => item.trim()).filter(Boolean),
+      );
+    }
+  }
+
+  if (
+    result.flavors.length > 0 ||
+    result.serviceSpecificEnhancements.length > 0
+  ) {
+    return {
+      flavors: normalizeStringArray(result.flavors),
+      serviceSpecificEnhancements: normalizeStringArray(
+        result.serviceSpecificEnhancements,
+      ),
+    };
+  }
+
+  return {
+    flavors: [rawValue],
+    serviceSpecificEnhancements: [],
+  };
 }
 
 export function buildServiceFinalValue(

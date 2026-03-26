@@ -1,10 +1,15 @@
 import {
   arrayToCsv,
+  buildFlavorEnhancementsValue,
+  buildServiceFinalValue,
   DealSearchResult,
   DealServiceInput,
-  buildServiceFinalValue,
 } from "@/lib/deal-services";
 import { FRESHSALES_PRODUCT_CUSTOM_FIELDS } from "@/lib/freshsales-product-fields";
+import {
+  FRESHSALES_SERVICE_ORDER_ENTITY_NAME,
+  FRESHSALES_SERVICE_ORDER_FIELDS,
+} from "@/lib/freshsales-service-order-fields";
 import { HttpError } from "@/lib/http-error";
 
 type FreshsalesErrorPayload = {
@@ -39,11 +44,32 @@ type FreshsalesProductDetailsResponse = {
 
 type FreshsalesDealDetailsResponse = {
   deal: {
+    id?: number | string;
     name?: string;
     currency?: {
       id?: number;
       name?: string | null;
     } | null;
+  };
+};
+
+type FreshsalesCustomModuleRecord = {
+  id: number | string;
+  name?: string | null;
+  custom_field?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type FreshsalesServiceOrderRecordResponse = {
+  [FRESHSALES_SERVICE_ORDER_ENTITY_NAME]: FreshsalesCustomModuleRecord;
+};
+
+type FreshsalesServiceOrderListResponse = {
+  [FRESHSALES_SERVICE_ORDER_ENTITY_NAME]: FreshsalesCustomModuleRecord[];
+  meta?: {
+    total_pages?: number;
+    total?: number;
   };
 };
 
@@ -120,7 +146,7 @@ async function parseResponse<T>(response: Response) {
   return parsed as T;
 }
 
-async function freshsalesFetch<T>(path: string, init: RequestInit = {}) {
+export async function freshsalesFetch<T>(path: string, init: RequestInit = {}) {
   const { baseUrl, apiKey } = getFreshsalesConfig();
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
@@ -272,14 +298,20 @@ async function syncFreshsalesProductUsdPricing(productId: number, unitPrice: num
   );
 }
 
-export async function getFreshsalesDealAndAssertUsd(dealId: string) {
+export async function getFreshsalesDeal(dealId: string) {
   const dealDetails = await freshsalesFetch<FreshsalesDealDetailsResponse>(
     `/crm-sandbox/sales/api/deals/${encodeURIComponent(dealId)}?include=currency`,
     {
       method: "GET",
     },
   );
-  const currencyName = dealDetails.deal.currency?.name;
+
+  return dealDetails.deal;
+}
+
+export async function getFreshsalesDealAndAssertUsd(dealId: string) {
+  const deal = await getFreshsalesDeal(dealId);
+  const currencyName = deal.currency?.name;
 
   if (!isUsdCurrencyName(currencyName)) {
     throw new HttpError(
@@ -287,8 +319,8 @@ export async function getFreshsalesDealAndAssertUsd(dealId: string) {
       `This deal uses ${currencyName}. The current service sync is configured for USD products only.`,
     );
   }
-  
-  return dealDetails.deal;
+
+  return deal;
 }
 
 export async function searchFreshsalesDeals(query: string) {
@@ -367,6 +399,126 @@ export async function syncFreshsalesDealProducts(
           })),
         },
       }),
+    },
+  );
+}
+
+function getServiceOrderViewId() {
+  return process.env.FRESHSALES_SERVICE_ORDER_VIEW_ID?.trim() || "127026452340";
+}
+
+function buildServiceOrderPayload(
+  serviceId: string,
+  service: DealServiceInput,
+  dealName: string,
+) {
+  return {
+    [FRESHSALES_SERVICE_ORDER_ENTITY_NAME]: {
+      name: service.baseServiceName,
+      custom_field: {
+        [FRESHSALES_SERVICE_ORDER_FIELDS.serviceOrderId]: serviceId,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.dealId]: service.dealId,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.dealName]: dealName,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.serviceCategory]: service.category,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.serviceSubCategory]: service.subCategory,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.flavorEnhancements]:
+          buildFlavorEnhancementsValue(
+            service.flavors,
+            service.serviceSpecificEnhancements,
+          ),
+        [FRESHSALES_SERVICE_ORDER_FIELDS.universalPlatform]:
+          service.universalPlatform,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.aui]: service.aui,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.updatedMainMachine]:
+          service.updatedMainMachine,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.updatedMachine2]:
+          service.updatedMachine2,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.updatedMachine3]:
+          service.updatedMachine3,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.price]: service.price ?? 0,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.finalValue]:
+          buildServiceFinalValue(service),
+      },
+    },
+  };
+}
+
+export async function listFreshsalesServiceOrders() {
+  const allRecords: FreshsalesCustomModuleRecord[] = [];
+  const viewId = getServiceOrderViewId();
+  let page = 1;
+  let totalPages = 1;
+
+  while (page <= totalPages) {
+    const params = new URLSearchParams({
+      per_page: "100",
+      page: String(page),
+      sort: FRESHSALES_SERVICE_ORDER_FIELDS.serviceOrderId,
+      sort_type: "asc",
+    });
+    const response = await freshsalesFetch<FreshsalesServiceOrderListResponse>(
+      `/crm-sandbox/sales/api/custom_module/${encodeURIComponent(
+        FRESHSALES_SERVICE_ORDER_ENTITY_NAME,
+      )}/view/${encodeURIComponent(viewId)}?${params.toString()}`,
+      {
+        method: "GET",
+      },
+    );
+
+    allRecords.push(
+      ...(response[FRESHSALES_SERVICE_ORDER_ENTITY_NAME] ?? []),
+    );
+    totalPages = Math.max(response.meta?.total_pages ?? 1, 1);
+    page += 1;
+  }
+
+  return allRecords;
+}
+
+export async function createFreshsalesServiceOrder(
+  serviceId: string,
+  service: DealServiceInput,
+  dealName: string,
+) {
+  const response = await freshsalesFetch<FreshsalesServiceOrderRecordResponse>(
+    `/crm-sandbox/sales/api/custom_module/${encodeURIComponent(
+      FRESHSALES_SERVICE_ORDER_ENTITY_NAME,
+    )}`,
+    {
+      method: "POST",
+      body: JSON.stringify(buildServiceOrderPayload(serviceId, service, dealName)),
+    },
+  );
+
+  return response[FRESHSALES_SERVICE_ORDER_ENTITY_NAME];
+}
+
+export async function updateFreshsalesServiceOrder(
+  recordId: string | number,
+  serviceId: string,
+  service: DealServiceInput,
+  dealName: string,
+) {
+  const response = await freshsalesFetch<FreshsalesServiceOrderRecordResponse>(
+    `/crm-sandbox/sales/api/custom_module/${encodeURIComponent(
+      FRESHSALES_SERVICE_ORDER_ENTITY_NAME,
+    )}/${encodeURIComponent(String(recordId))}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(buildServiceOrderPayload(serviceId, service, dealName)),
+    },
+  );
+
+  return response[FRESHSALES_SERVICE_ORDER_ENTITY_NAME];
+}
+
+export async function deleteFreshsalesServiceOrder(recordId: string | number) {
+  return freshsalesFetch<{ message?: string }>(
+    `/crm-sandbox/sales/api/custom_module/${encodeURIComponent(
+      FRESHSALES_SERVICE_ORDER_ENTITY_NAME,
+    )}/${encodeURIComponent(String(recordId))}`,
+    {
+      method: "DELETE",
     },
   );
 }

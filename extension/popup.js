@@ -51,6 +51,33 @@ function buildServiceFinalValue(s) {
   return `${cat}_${sub}_${base}|${flavors.join(",")}`;
 }
 
+function getFlavorEnhancementOptions(service) {
+  if (!service.baseServiceName) return [];
+
+  const flavorOptions = SC.getFlavorOptions(
+    service.category,
+    service.subCategory,
+    service.universalPlatform,
+    service.baseServiceName,
+  );
+  const enhancementOptions = SC.getEnhancementOptions(
+    service.category,
+    service.subCategory,
+    service.universalPlatform,
+    service.baseServiceName,
+    [],
+  ).filter(value => value !== "None");
+
+  return [...new Set([...flavorOptions, ...enhancementOptions])];
+}
+
+function getSelectedFlavorEnhancementValues(service) {
+  return normalizeStringArray([
+    ...service.flavors,
+    ...service.serviceSpecificEnhancements,
+  ]);
+}
+
 function resolveSingleValue(current, options) {
   if (options.length === 1) return options[0];
   return options.includes(current) ? current : "";
@@ -292,14 +319,6 @@ function handleSubCategoryChange(id, value) {
   }));
 }
 
-function handleUniversalPlatformChange(id, value) {
-  updateService(id, s => markDirty({
-    ...s, universalPlatform: value,
-    baseServiceName: "", flavors: [], serviceSpecificEnhancements: [],
-    aui: "", updatedMainMachine: "", updatedMachine2: "", updatedMachine3: "",
-  }));
-}
-
 function handleBaseServiceSelect(id, value) {
   const parsed = SC.parseBaseServiceSelectionKey(value);
   updateService(id, s => {
@@ -320,15 +339,30 @@ function handleBaseServiceSelect(id, value) {
   });
 }
 
-function handleFlavorsChange(id, value) {
+function handleFlavorEnhancementChange(id, value) {
   updateService(id, s => markDirty(syncRowDerivedFields({
-    ...s, flavors: value, serviceSpecificEnhancements: [],
+    ...s,
+    flavors: value.filter(option =>
+      SC.getFlavorOptions(
+        s.category,
+        s.subCategory,
+        s.universalPlatform,
+        s.baseServiceName,
+      ).includes(option),
+    ),
+    serviceSpecificEnhancements: value.filter(option =>
+      SC.getEnhancementOptions(
+        s.category,
+        s.subCategory,
+        s.universalPlatform,
+        s.baseServiceName,
+        [],
+      )
+        .filter(item => item !== "None")
+        .includes(option),
+    ),
     aui: "", updatedMainMachine: "", updatedMachine2: "", updatedMachine3: "",
   })));
-}
-
-function handleEnhancementsChange(id, value) {
-  updateService(id, s => markDirty({ ...s, serviceSpecificEnhancements: value }));
 }
 
 function handleFieldChange(id, field, value) {
@@ -422,24 +456,12 @@ function buildServiceCard(s, num) {
 
 function buildFormFields(grid, s, num) {
   const baseKey = s.baseServiceName
-    ? SC.buildBaseServiceSelectionKey(s.category, s.subCategory, s.universalPlatform, s.baseServiceName)
+    ? SC.buildBaseServiceSelectionKey(s.category, s.subCategory, s.baseServiceName)
     : "";
-  const baseOpts = SC.getBaseServiceSelectionOptions(s.category, s.subCategory, s.universalPlatform)
+  const baseOpts = SC.getBaseServiceSelectionOptions(s.category, s.subCategory)
     .map(o => ({ value: o.key, label: o.label }));
   const subCatOpts = SC.getSubCategoryOptions(s.category).map(o => o.name);
-  const platOpts = SC.getUniversalPlatformOptions(s.category, s.subCategory).map(o => o.name);
-  const flavorOpts = SC.getFlavorOptions(s.category, s.subCategory, s.universalPlatform, s.baseServiceName);
-  const enhOpts = SC.getEnhancementOptions(s.category, s.subCategory, s.universalPlatform, s.baseServiceName, s.flavors);
-  const auiOpts = SC.getAuiOptions(s.category, s.subCategory, s.universalPlatform, s.baseServiceName, s.flavors);
-  const mm1Opts = SC.getUpdatedMainMachineOptions(s.category, s.subCategory, s.universalPlatform, s.baseServiceName, s.flavors);
-  const mm2Opts = SC.getUpdatedMachine2Options(s.category, s.subCategory, s.universalPlatform, s.baseServiceName, s.flavors);
-  const mm3Opts = SC.getUpdatedMachine3Options(s.category, s.subCategory, s.universalPlatform, s.baseServiceName, s.flavors);
-  const enhancementStepReady = s.flavors.length > 0;
-  const auiStepReady = auiOpts.length === 0 || Boolean(s.aui);
-
-  // Base Service Name
-  grid.appendChild(createSelectField("Base Service Name", baseKey, baseOpts.map(o => ({ value: o.value, label: o.label })),
-    "Select a base service", false, v => handleBaseServiceSelect(s.id, v)));
+  const flavorEnhancementOptions = getFlavorEnhancementOptions(s);
 
   // Category
   grid.appendChild(createSelectField("Category", s.category,
@@ -451,53 +473,15 @@ function buildFormFields(grid, s, num) {
     subCatOpts.map(v => ({ value: v, label: v })),
     "Select a sub category", !s.category, v => handleSubCategoryChange(s.id, v)));
 
-  // Universal Platform
-  grid.appendChild(createSelectField("Universal Platform", s.universalPlatform,
-    platOpts.map(v => ({ value: v, label: v })),
-    "Select a universal platform", !s.subCategory, v => handleUniversalPlatformChange(s.id, v)));
+  // Base Service Name
+  grid.appendChild(createSelectField("Base Service Name", baseKey, baseOpts.map(o => ({ value: o.value, label: o.label })),
+    "Select a base service", !s.subCategory, v => handleBaseServiceSelect(s.id, v)));
 
-  // Flavors
+  // Flavor / Enhancements
   if (s.baseServiceName) {
-    grid.appendChild(createMultiSelectField("Flavors", s.flavors, flavorOpts,
-      "Select one or more flavors", false, v => handleFlavorsChange(s.id, v)));
-  }
-
-  // Enhancements
-  if (s.flavors.length > 0) {
-    grid.appendChild(createMultiSelectField("Service-Specific Enhancements",
-      s.serviceSpecificEnhancements, enhOpts,
-      "Select enhancements", false, v => handleEnhancementsChange(s.id, v)));
-  }
-
-  // AUI
-  if (enhancementStepReady) {
-    grid.appendChild(createSelectField("AUI", s.aui,
-      auiOpts.map(v => ({ value: v, label: v })),
-      "Select an AUI value", false, v => handleFieldChange(s.id, "aui", v)));
-  }
-
-  // Updated Main Machine
-  if (enhancementStepReady && auiStepReady) {
-    grid.appendChild(createSelectField("Updated Main Machine", s.updatedMainMachine,
-      mm1Opts.map(v => ({ value: v, label: v })),
-      mm1Opts.length > 0 ? "Select a machine" : "No machine for this row", false,
-      v => handleFieldChange(s.id, "updatedMainMachine", v)));
-  }
-
-  // Updated Machine 2
-  if (enhancementStepReady && auiStepReady) {
-    grid.appendChild(createSelectField("Updated Machine 2", s.updatedMachine2,
-      mm2Opts.map(v => ({ value: v, label: v })),
-      mm2Opts.length > 0 ? "Select a machine" : "No machine for this row", false,
-      v => handleFieldChange(s.id, "updatedMachine2", v)));
-  }
-
-  // Updated Machine 3
-  if (enhancementStepReady && auiStepReady) {
-    grid.appendChild(createSelectField("Updated Machine 3", s.updatedMachine3,
-      mm3Opts.map(v => ({ value: v, label: v })),
-      mm3Opts.length > 0 ? "Select a machine" : "No machine for this row", false,
-      v => handleFieldChange(s.id, "updatedMachine3", v)));
+    grid.appendChild(createMultiSelectField("Flavor / Enhancements",
+      getSelectedFlavorEnhancementValues(s), flavorEnhancementOptions,
+      "Select one or more values", false, v => handleFlavorEnhancementChange(s.id, v)));
   }
 
   // Price

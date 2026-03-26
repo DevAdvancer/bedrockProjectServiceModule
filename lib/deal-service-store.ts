@@ -1,148 +1,278 @@
 import { randomUUID } from "crypto";
-import { Types } from "mongoose";
 import {
-  arrayToCsv,
   buildCombinedFinalValue,
   buildServiceFinalValue,
-  csvToArray,
   DealServiceInput,
+  parseFlavorEnhancementsValue,
   PersistedDealService,
 } from "@/lib/deal-services";
 import {
-  createFreshsalesProduct,
-  deleteFreshsalesProduct,
-  syncFreshsalesDealProducts,
-  updateFreshsalesProduct,
-  getFreshsalesDealAndAssertUsd,
+  createFreshsalesServiceOrder,
+  deleteFreshsalesServiceOrder,
+  getFreshsalesDeal,
+  listFreshsalesServiceOrders,
+  searchFreshsalesDeals,
+  updateFreshsalesServiceOrder,
 } from "@/lib/freshsales";
+import {
+  FRESHSALES_SERVICE_ORDER_FIELD_ALIASES,
+  FRESHSALES_SERVICE_ORDER_FIELDS,
+} from "@/lib/freshsales-service-order-fields";
 import { HttpError } from "@/lib/http-error";
-import { connectToDatabase } from "@/lib/mongodb";
-import DealServiceModel, { DealServiceDocument } from "@/models/deal-service";
 
-type MongoDealServiceRecord = DealServiceDocument & {
-  _id: Types.ObjectId;
+type FreshsalesServiceOrderRecord = Awaited<
+  ReturnType<typeof listFreshsalesServiceOrders>
+>[number];
+
+type ServiceOrderRecord = {
+  recordId: string | number;
+  service: PersistedDealService;
 };
 
-function toMongoRecord(
-  id: string,
-  service: DealServiceInput,
-  dealName: string,
-  freshsalesProductId?: number,
-): Omit<DealServiceDocument, "created_at" | "updated_at"> {
-  return {
-    id,
-    deal_id: service.dealId,
-    deal_name: dealName,
-    freshsales_product_id: freshsalesProductId,
-    category: service.category,
-    sub_category: service.subCategory,
-    base_service_name: service.baseServiceName,
-    flavors: arrayToCsv(service.flavors),
-    service_specific_enhancements: arrayToCsv(service.serviceSpecificEnhancements),
-    universal_platform: service.universalPlatform,
-    aui: service.aui,
-    updated_main_machine: service.updatedMainMachine,
-    updated_machine_2: service.updatedMachine2,
-    updated_machine_3: service.updatedMachine3,
-    price: service.price ?? 0,
-    final_value: buildServiceFinalValue(service),
-  };
+function getCustomFieldValue(
+  record: FreshsalesServiceOrderRecord,
+  fieldName: string,
+) {
+  return record.custom_field?.[fieldName];
 }
 
-function toServiceInput(record: DealServiceDocument): DealServiceInput {
-  return {
-    dealId: record.deal_id,
-    category: record.category,
-    subCategory: record.sub_category,
-    baseServiceName: record.base_service_name,
-    flavors: csvToArray(record.flavors),
-    serviceSpecificEnhancements: csvToArray(record.service_specific_enhancements),
-    universalPlatform: record.universal_platform,
-    aui: record.aui,
-    updatedMainMachine: record.updated_main_machine,
-    updatedMachine2: record.updated_machine_2,
-    updatedMachine3: record.updated_machine_3,
-    price: record.price,
-  };
+function getFirstCustomFieldValue(
+  record: FreshsalesServiceOrderRecord,
+  fieldNames: readonly string[],
+) {
+  for (const fieldName of fieldNames) {
+    const value = getCustomFieldValue(record, fieldName);
+    if (value !== undefined && value !== null && value !== "") {
+      return value;
+    }
+  }
+
+  return undefined;
 }
 
-function fromMongoRecord(record: DealServiceDocument): PersistedDealService {
-  return {
-    id: record.id,
-    dealId: record.deal_id,
-    category: record.category,
-    subCategory: record.sub_category,
-    baseServiceName: record.base_service_name,
-    flavors: csvToArray(record.flavors),
-    serviceSpecificEnhancements: csvToArray(record.service_specific_enhancements),
-    universalPlatform: record.universal_platform,
-    aui: record.aui,
-    updatedMainMachine: record.updated_main_machine,
-    updatedMachine2: record.updated_machine_2,
-    updatedMachine3: record.updated_machine_3,
-    price: record.price,
-    freshsalesProductId: record.freshsales_product_id,
-    finalValue: record.final_value,
-    createdAt: record.created_at?.toISOString(),
-    updatedAt: record.updated_at?.toISOString(),
-  };
+function toStringValue(value: unknown) {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  if (typeof value === "number") {
+    return String(value);
+  }
+
+  return "";
 }
 
-async function listDealServiceRecords(dealId: string) {
-  await connectToDatabase();
-  
-  // Escape regex special characters in case the dealId is actually a name with brackets, etc.
-  const safeSearch = dealId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  
-  return DealServiceModel.find({
-    $or: [{ deal_id: dealId }, { deal_name: { $regex: new RegExp(`^${safeSearch}$`, "i") } }]
-  })
-    .sort({ created_at: 1 })
-    .lean<MongoDealServiceRecord[]>();
+function toNumberValue(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return 0;
 }
 
-function buildDealProductLineItems(records: DealServiceDocument[]) {
-  return records
-    .filter((service): service is DealServiceDocument & { freshsales_product_id: number } =>
-      typeof service.freshsales_product_id === "number",
-    )
-    .map((service) => ({
-      id: service.freshsales_product_id,
-      quantity: 1,
-      unitPrice: service.price,
-    }));
+function toIsoString(value?: string | null) {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return undefined;
+  }
+
+  return parsed.toISOString();
 }
 
-async function syncFreshsalesForDeal(dealId: string) {
-  const services = await listDealServiceRecords(dealId);
-  const combinedFinalValue = buildCombinedFinalValue(
-    services.map((service) => ({
-      finalValue: service.final_value,
-    })),
+function mapServiceOrderRecord(
+  record: FreshsalesServiceOrderRecord,
+): ServiceOrderRecord {
+  const serviceOrderId =
+    toStringValue(
+      getCustomFieldValue(record, FRESHSALES_SERVICE_ORDER_FIELDS.serviceOrderId),
+    ) || String(record.id);
+  const dealId = toStringValue(
+    getCustomFieldValue(record, FRESHSALES_SERVICE_ORDER_FIELDS.dealId),
   );
+  const category = toStringValue(
+    getCustomFieldValue(record, FRESHSALES_SERVICE_ORDER_FIELDS.serviceCategory),
+  );
+  const subCategory = toStringValue(
+    getCustomFieldValue(
+      record,
+      FRESHSALES_SERVICE_ORDER_FIELDS.serviceSubCategory,
+    ),
+  );
+  const baseServiceName = toStringValue(record.name);
+  const flavorEnhancements = parseFlavorEnhancementsValue(
+    toStringValue(
+      getFirstCustomFieldValue(
+        record,
+        FRESHSALES_SERVICE_ORDER_FIELD_ALIASES.flavorEnhancements,
+      ),
+    ),
+  );
+  const finalValue =
+    toStringValue(
+      getCustomFieldValue(record, FRESHSALES_SERVICE_ORDER_FIELDS.finalValue),
+    ) ||
+    buildServiceFinalValue({
+      category,
+      subCategory,
+      baseServiceName,
+      flavors: flavorEnhancements.flavors,
+    });
 
-  await syncFreshsalesDealProducts(dealId, buildDealProductLineItems(services));
-  return combinedFinalValue;
+  return {
+    recordId: record.id,
+    service: {
+      id: serviceOrderId,
+      dealId,
+      category,
+      subCategory,
+      baseServiceName,
+      flavors: flavorEnhancements.flavors,
+      serviceSpecificEnhancements:
+        flavorEnhancements.serviceSpecificEnhancements,
+      universalPlatform: toStringValue(
+        getCustomFieldValue(
+          record,
+          FRESHSALES_SERVICE_ORDER_FIELDS.universalPlatform,
+        ),
+      ),
+      aui: toStringValue(
+        getCustomFieldValue(record, FRESHSALES_SERVICE_ORDER_FIELDS.aui),
+      ),
+      updatedMainMachine: toStringValue(
+        getCustomFieldValue(
+          record,
+          FRESHSALES_SERVICE_ORDER_FIELDS.updatedMainMachine,
+        ),
+      ),
+      updatedMachine2: toStringValue(
+        getCustomFieldValue(
+          record,
+          FRESHSALES_SERVICE_ORDER_FIELDS.updatedMachine2,
+        ),
+      ),
+      updatedMachine3: toStringValue(
+        getCustomFieldValue(
+          record,
+          FRESHSALES_SERVICE_ORDER_FIELDS.updatedMachine3,
+        ),
+      ),
+      price: toNumberValue(
+        getCustomFieldValue(record, FRESHSALES_SERVICE_ORDER_FIELDS.price),
+      ),
+      finalValue,
+      createdAt: toIsoString(record.created_at),
+      updatedAt: toIsoString(record.updated_at),
+    },
+  };
+}
+
+async function listServiceOrderRecords() {
+  const records = await listFreshsalesServiceOrders();
+  return records
+    .map((record) => mapServiceOrderRecord(record))
+    .sort((left, right) => {
+      const leftTimestamp = Date.parse(left.service.createdAt ?? "") || 0;
+      const rightTimestamp = Date.parse(right.service.createdAt ?? "") || 0;
+      return leftTimestamp - rightTimestamp;
+    });
+}
+
+async function getCombinedFinalValueForDeal(dealId: string) {
+  const records = await listServiceOrderRecords();
+  return buildCombinedFinalValue(
+    records
+      .filter((record) => record.service.dealId === dealId)
+      .map((record) => ({
+        finalValue: record.service.finalValue,
+      })),
+  );
+}
+
+async function findServiceOrderRecordByServiceId(id: string) {
+  const records = await listServiceOrderRecords();
+  const existingRecord = records.find((record) => record.service.id === id);
+
+  if (!existingRecord) {
+    throw new HttpError(404, "Service record not found.");
+  }
+
+  return existingRecord;
+}
+
+async function assertServiceOrderIdIsAvailable(id: string) {
+  const records = await listServiceOrderRecords();
+  if (records.some((record) => record.service.id === id)) {
+    throw new HttpError(
+      409,
+      "That service ID already exists. Please create a new service block.",
+    );
+  }
+}
+
+async function resolveDealReference(dealReference: string) {
+  const normalizedReference = dealReference.trim();
+
+  try {
+    const deal = await getFreshsalesDeal(normalizedReference);
+    return {
+      id: normalizedReference,
+      name: deal.name || normalizedReference,
+    };
+  } catch (error) {
+    const matches = await searchFreshsalesDeals(normalizedReference);
+    const exactMatch = matches.find(
+      (match) =>
+        match.name.trim().toLowerCase() === normalizedReference.toLowerCase(),
+    );
+
+    if (exactMatch) {
+      return {
+        id: exactMatch.id,
+        name: exactMatch.name,
+      };
+    }
+
+    throw error;
+  }
 }
 
 export async function listDealServices(dealId: string) {
-  if (!dealId.trim()) {
+  const normalizedDealId = dealId.trim();
+
+  if (!normalizedDealId) {
     throw new HttpError(400, "A dealId query parameter is required.");
   }
 
-  const services = await listDealServiceRecords(dealId);
+  const [deal, records] = await Promise.all([
+    resolveDealReference(normalizedDealId),
+    listServiceOrderRecords(),
+  ]);
+  const services = records
+    .filter((record) => record.service.dealId === deal.id)
+    .map((record) => record.service);
 
   return {
-    services: services.map((service) => fromMongoRecord(service)),
+    services,
     combinedFinalValue: buildCombinedFinalValue(
       services.map((service) => ({
-        finalValue: service.final_value,
+        finalValue: service.finalValue,
       })),
     ),
-    deal: services.length > 0 ? {
-      id: services[0].deal_id,
-      name: services[0].deal_name
-    } : null,
+    deal: {
+      id: deal.id,
+      name: deal.name,
+    },
   };
 }
 
@@ -154,145 +284,50 @@ export async function createDealService(
   service: DealServiceInput,
   preferredId?: string,
 ) {
-  await connectToDatabase();
-  
-  const deal = await getFreshsalesDealAndAssertUsd(service.dealId);
-  const dealName = deal.name || service.dealId;
-
+  const deal = await getFreshsalesDeal(service.dealId);
+  const dealName = deal.name?.trim() || service.dealId;
   const id = preferredId?.trim() || randomUUID();
-  const existingRecord = await DealServiceModel.findOne({ id }).lean();
 
-  if (existingRecord) {
-    throw new HttpError(409, "That service ID already exists. Please create a new service block.");
-  }
+  await assertServiceOrderIdIsAvailable(id);
 
-  await DealServiceModel.create(toMongoRecord(id, service, dealName));
-  let freshsalesProductId: number | undefined;
+  const createdRecord = await createFreshsalesServiceOrder(id, service, dealName);
+  const mappedRecord = mapServiceOrderRecord(createdRecord);
 
-  try {
-    freshsalesProductId = await createFreshsalesProduct(id, service);
-    await DealServiceModel.updateOne(
-      { id },
-      { $set: { freshsales_product_id: freshsalesProductId } },
-    );
-
-    const combinedFinalValue = await syncFreshsalesForDeal(service.dealId);
-    const syncedRecord = await DealServiceModel.findOne({ id }).lean<MongoDealServiceRecord | null>();
-
-    if (!syncedRecord) {
-      throw new HttpError(404, "Service record not found after sync.");
-    }
-
-    return {
-      service: fromMongoRecord(syncedRecord),
-      combinedFinalValue,
-    };
-  } catch (error) {
-    if (typeof freshsalesProductId === "number") {
-      await deleteFreshsalesProduct(freshsalesProductId).catch(() => undefined);
-    }
-
-    await DealServiceModel.deleteOne({ id });
-    throw error;
-  }
+  return {
+    service: mappedRecord.service,
+    combinedFinalValue: await getCombinedFinalValueForDeal(service.dealId),
+  };
 }
 
 export async function updateDealService(id: string, service: DealServiceInput) {
-  await connectToDatabase();
-  
-  const deal = await getFreshsalesDealAndAssertUsd(service.dealId);
-  const dealName = deal.name || service.dealId;
+  const existingRecord = await findServiceOrderRecordByServiceId(id);
+  const deal = await getFreshsalesDeal(service.dealId);
+  const dealName = deal.name?.trim() || service.dealId;
 
-  const previousRecord = await DealServiceModel.findOne({ id }).lean<MongoDealServiceRecord | null>();
+  const updatedRecord = await updateFreshsalesServiceOrder(
+    existingRecord.recordId,
+    id,
+    service,
+    dealName,
+  );
+  const mappedRecord = mapServiceOrderRecord(updatedRecord);
 
-  if (!previousRecord) {
-    throw new HttpError(404, "Service record not found.");
-  }
-
-  const previousService = toServiceInput(previousRecord);
-  const previousProductId = previousRecord.freshsales_product_id;
-  const previousDealId = previousRecord.deal_id;
-  let currentProductId = previousProductId;
-  let createdProductId: number | undefined;
-
-  try {
-    if (typeof previousProductId === "number") {
-      currentProductId = await updateFreshsalesProduct(previousProductId, id, service);
-    } else {
-      createdProductId = await createFreshsalesProduct(id, service);
-      currentProductId = createdProductId;
-    }
-
-    await DealServiceModel.updateOne(
-      { id },
-      { $set: toMongoRecord(id, service, dealName, currentProductId) },
-    );
-
-    if (previousDealId !== service.dealId) {
-      await syncFreshsalesForDeal(previousDealId);
-    }
-
-    const combinedFinalValue = await syncFreshsalesForDeal(service.dealId);
-    const updatedRecord = await DealServiceModel.findOne({ id }).lean<MongoDealServiceRecord | null>();
-
-    if (!updatedRecord) {
-      throw new HttpError(404, "Service record not found after update.");
-    }
-
-    return {
-      service: fromMongoRecord(updatedRecord),
-      combinedFinalValue,
-    };
-  } catch (error) {
-    await DealServiceModel.replaceOne({ id }, previousRecord);
-
-    if (typeof createdProductId === "number") {
-      await deleteFreshsalesProduct(createdProductId).catch(() => undefined);
-    } else if (typeof previousProductId === "number") {
-      await updateFreshsalesProduct(previousProductId, id, previousService).catch(
-        () => undefined,
-      );
-    }
-
-    if (previousDealId !== service.dealId) {
-      await syncFreshsalesForDeal(previousDealId).catch(() => undefined);
-      await syncFreshsalesForDeal(service.dealId).catch(() => undefined);
-    } else {
-      await syncFreshsalesForDeal(service.dealId).catch(() => undefined);
-    }
-
-    throw error;
-  }
+  return {
+    service: mappedRecord.service,
+    combinedFinalValue: await getCombinedFinalValueForDeal(service.dealId),
+  };
 }
 
 export async function deleteDealService(id: string) {
-  await connectToDatabase();
+  const existingRecord = await findServiceOrderRecordByServiceId(id);
 
-  const existingRecord = await DealServiceModel.findOne({ id }).lean<MongoDealServiceRecord | null>();
+  await deleteFreshsalesServiceOrder(existingRecord.recordId);
 
-  if (!existingRecord) {
-    throw new HttpError(404, "Service record not found.");
-  }
-
-  await DealServiceModel.deleteOne({ id });
-
-  try {
-    const combinedFinalValue = await syncFreshsalesForDeal(existingRecord.deal_id);
-
-    if (typeof existingRecord.freshsales_product_id === "number") {
-      await deleteFreshsalesProduct(existingRecord.freshsales_product_id).catch(
-        () => undefined,
-      );
-    }
-
-    return {
-      deletedId: id,
-      dealId: existingRecord.deal_id,
-      combinedFinalValue,
-    };
-  } catch (error) {
-    await DealServiceModel.collection.insertOne(existingRecord);
-    await syncFreshsalesForDeal(existingRecord.deal_id).catch(() => undefined);
-    throw error;
-  }
+  return {
+    deletedId: id,
+    dealId: existingRecord.service.dealId,
+    combinedFinalValue: await getCombinedFinalValueForDeal(
+      existingRecord.service.dealId,
+    ),
+  };
 }
