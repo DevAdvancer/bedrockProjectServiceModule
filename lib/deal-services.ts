@@ -1,5 +1,6 @@
 import {
   getAuiOptions,
+  ServiceCatalogRow,
   getUpdatedMachine2Options,
   getUpdatedMachine3Options,
   getUpdatedMainMachineOptions,
@@ -221,7 +222,10 @@ export function buildCombinedFinalValue(
     .join(";");
 }
 
-export function parseDealServicePayload(payload: unknown) {
+export function parseDealServicePayload(
+  payload: unknown,
+  serviceMaps: ServiceCatalogRow[],
+) {
   if (!payload || typeof payload !== "object") {
     return {
       success: false as const,
@@ -302,6 +306,7 @@ export function parseDealServicePayload(payload: unknown) {
 
   if (
     getAuiOptions(
+      serviceMaps,
       category,
       subCategory,
       universalPlatform,
@@ -318,6 +323,7 @@ export function parseDealServicePayload(payload: unknown) {
 
   if (
     getUpdatedMainMachineOptions(
+      serviceMaps,
       category,
       subCategory,
       universalPlatform,
@@ -334,6 +340,7 @@ export function parseDealServicePayload(payload: unknown) {
 
   if (
     getUpdatedMachine2Options(
+      serviceMaps,
       category,
       subCategory,
       universalPlatform,
@@ -350,6 +357,7 @@ export function parseDealServicePayload(payload: unknown) {
 
   if (
     getUpdatedMachine3Options(
+      serviceMaps,
       category,
       subCategory,
       universalPlatform,

@@ -20,7 +20,8 @@
     "storage"
   ],
   "host_permissions": [
-    "http://localhost:3000/*"
+    "https://bedrock-project-service-module.vercel.app/*",
+    "https://crepesalatte.freshworks.com/*"
   ],
   "content_scripts": [
     {
@@ -40,7 +41,6 @@
         "popup.css",
         "popup.js",
         "service-catalog.js",
-        "service-catalog-data.js",
         "icons/*"
       ],
       "matches": [

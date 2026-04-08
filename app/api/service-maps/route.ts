@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  createDealService,
-  listDealServices,
-} from "@/lib/deal-service-store";
-import { parseDealServicePayload } from "@/lib/deal-services";
 import { getErrorMessage, HttpError } from "@/lib/http-error";
-import { listServiceMaps } from "@/lib/service-map-store";
+import { parseServiceMapPayload } from "@/lib/service-map-payload";
+import {
+  createServiceMap,
+  listServiceMaps,
+} from "@/lib/service-map-store";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const dealId = request.nextUrl.searchParams.get("dealId")?.trim() ?? "";
+  const includeInactive =
+    request.nextUrl.searchParams.get("includeInactive") === "true";
 
   try {
-    const result = await listDealServices(dealId);
-    return NextResponse.json(result);
+    const maps = await listServiceMaps({ includeInactive });
+    return NextResponse.json({ maps });
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;
-
     return NextResponse.json({ error: getErrorMessage(error) }, { status });
   }
 }
@@ -23,17 +24,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const payload = await request.json();
-    const serviceMaps = await listServiceMaps();
-    const parsedPayload = parseDealServicePayload(payload, serviceMaps);
+    const existingMaps = await listServiceMaps({ includeInactive: true });
+    const parsedPayload = parseServiceMapPayload(payload, existingMaps.length + 1);
 
     if (!parsedPayload.success) {
       return NextResponse.json({ error: parsedPayload.error }, { status: 400 });
     }
 
-    const preferredId =
-      typeof payload?.id === "string" ? payload.id.trim() : undefined;
-
-    const result = await createDealService(parsedPayload.data, preferredId);
+    const result = await createServiceMap(parsedPayload.data);
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;

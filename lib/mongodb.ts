@@ -26,8 +26,6 @@ export async function connectToDatabase() {
 
   if (!mongoUri) {
     throw new HttpError(500, "MONGODB_URI is not configured.");
-  } else {
-    console.log("MONGODB_URI is configured.", mongoUri);
   }
 
   if (!cached.promise) {
@@ -40,4 +38,3 @@ export async function connectToDatabase() {
   cached.conn = await cached.promise;
   return cached.conn;
 }
-

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  deleteDealService,
-  updateDealService,
-} from "@/lib/deal-service-store";
-import { parseDealServicePayload } from "@/lib/deal-services";
 import { getErrorMessage, HttpError } from "@/lib/http-error";
-import { listServiceMaps } from "@/lib/service-map-store";
+import { parseServiceMapPayload } from "@/lib/service-map-payload";
+import {
+  deleteServiceMap,
+  updateServiceMap,
+} from "@/lib/service-map-store";
+
+export const dynamic = "force-dynamic";
 
 type RouteContext = {
   params: Promise<{
@@ -17,14 +18,13 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const payload = await request.json();
-    const serviceMaps = await listServiceMaps();
-    const parsedPayload = parseDealServicePayload(payload, serviceMaps);
+    const parsedPayload = parseServiceMapPayload(payload);
 
     if (!parsedPayload.success) {
       return NextResponse.json({ error: parsedPayload.error }, { status: 400 });
     }
 
-    const result = await updateDealService(id, parsedPayload.data);
+    const result = await updateServiceMap(id, parsedPayload.data);
     return NextResponse.json(result);
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;
@@ -36,7 +36,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 export async function DELETE(_request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
-    const result = await deleteDealService(id);
+    const result = await deleteServiceMap(id);
     return NextResponse.json(result);
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;

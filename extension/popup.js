@@ -1,8 +1,9 @@
 // CrepesALatte Service Studio — Chrome Extension Popup
 // Ported from components/deal-service-dashboard.tsx (React → vanilla JS)
 
-const API_BASE = "http://localhost:3000";
+const API_BASE = "https://bedrock-project-service-module.vercel.app"
 const SC = window.ServiceCatalog;
+let isCatalogReady = false;
 
 // ── State ──
 let selectedDeal = null;
@@ -41,6 +42,12 @@ function setPanelNote(text) { panelNoteEl.textContent = text; }
 
 function normalizeText(v) { return (v || "").trim(); }
 function normalizeStringArray(arr) { return [...new Set(arr.map(v => normalizeText(v)).filter(Boolean))]; }
+
+async function loadCatalogMappings() {
+  const data = await fetchJson("/api/service-maps");
+  SC.setRows(data.maps || []);
+  isCatalogReady = true;
+}
 
 function buildServiceFinalValue(s) {
   const cat = normalizeText(s.category);
@@ -134,6 +141,10 @@ function updateService(id, updater) {
 
 // ── Deal selection ──
 function selectDeal(deal) {
+  if (!isCatalogReady) {
+    setPanelNote("Service mappings are still loading.");
+    return;
+  }
   selectedDeal = deal;
   dealNameDisplay.textContent = deal.name;
   activeDealBadge.classList.remove("hidden");
@@ -158,7 +169,7 @@ async function loadServicesForDeal(deal) {
 
   try {
     const data = await fetchJson(`/api/deal-services?dealId=${encodeURIComponent(deal.id)}`);
-    
+
     // Auto-correct the deal ID and Name if the backend resolved it!
     if (data.deal && (data.deal.id !== deal.id || data.deal.name !== deal.name)) {
       selectedDeal = data.deal;
@@ -185,6 +196,7 @@ async function loadServicesForDeal(deal) {
 // ── Search ──
 searchForm.addEventListener("submit", e => {
   e.preventDefault();
+  if (!isCatalogReady) return;
   const q = searchInput.value.trim();
   if (q.length > 0) {
     selectDeal({ id: q, name: q });
@@ -194,17 +206,18 @@ searchForm.addEventListener("submit", e => {
 });
 
 searchInput.addEventListener("paste", e => {
+  if (!isCatalogReady) return;
   const pasted = e.clipboardData.getData("Text").trim();
   // Only capture digits immediately following deals/ to avoid capturing /deals/view/ list IDs
   const idMatch = pasted.match(/(?:deals\/)(\d+)/);
-  
+
   let finalId;
   if (idMatch) {
     finalId = idMatch[1];
   } else {
     // If it's an unrecognized URL, don't use it. Otherwise, use the pasted text (e.g. searching by name)
     if (pasted.startsWith("http://") || pasted.startsWith("https://")) {
-      return; 
+      return;
     }
     finalId = pasted;
   }
@@ -222,7 +235,7 @@ document.addEventListener("click", e => {
 
 // ── Add / Save / Delete ──
 addServiceBtn.addEventListener("click", async () => {
-  if (!selectedDeal || isCreatingService) return;
+  if (!isCatalogReady || !selectedDeal || isCreatingService) return;
   isCreatingService = true;
   addServiceBtn.querySelector("span").textContent = "Adding…";
 
@@ -370,7 +383,7 @@ function handleFieldChange(id, field, value) {
     const idx = services.findIndex(s => s.id === id);
     if (idx !== -1) {
       services[idx] = markDirty({ ...services[idx], [field]: value });
-      
+
       const card = document.querySelector(`.service-card[data-service-id="${id}"]`);
       if (card) {
         const statusEl = card.querySelector(".card-status");
@@ -723,14 +736,13 @@ function createNumberField(label, value, placeholder, disabled, onChange) {
 }
 
 // ── Initial Render ──
-renderServices();
 
 // ── Sidebar Auto-Loader and Mode Logic ──
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get("sidebar") === "true") {
   document.documentElement.classList.add("sidebar-mode");
   document.body.classList.add("sidebar-mode");
-  
+
   const closeBtn = document.getElementById("close-sidebar-btn");
   if (closeBtn) {
     closeBtn.classList.remove("hidden");
@@ -741,8 +753,29 @@ if (urlParams.get("sidebar") === "true") {
 }
 
 const autoDealId = urlParams.get("dealId");
-if (autoDealId) {
-  searchInput.value = autoDealId;
-  selectDeal({ id: autoDealId, name: autoDealId });
-  setTimeout(() => { searchInput.value = ""; }, 100);
+
+async function initPopup() {
+  setPanelNote("Loading service mappings...");
+  searchInput.disabled = true;
+  addServiceBtn.disabled = true;
+  renderServices();
+
+  try {
+    await loadCatalogMappings();
+    searchInput.disabled = false;
+    setPanelNote("Pick a deal to get started.");
+
+    if (autoDealId) {
+      searchInput.value = autoDealId;
+      selectDeal({ id: autoDealId, name: autoDealId });
+      setTimeout(() => { searchInput.value = ""; }, 100);
+      return;
+    }
+
+    renderServices();
+  } catch (err) {
+    setPanelNote(err.message || "Unable to load service mappings from MongoDB.");
+  }
 }
+
+void initPopup();

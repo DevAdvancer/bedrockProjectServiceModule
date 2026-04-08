@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   startTransition,
   useDeferredValue,
@@ -19,15 +20,16 @@ import {
   buildBaseServiceSelectionKey,
   getAuiOptions,
   getBaseServiceSelectionOptions,
+  getCategoryOptions,
   getEnhancementOptions,
   getFlavorOptions,
+  ServiceCatalogRow,
   getSubCategoryOptions,
   getUniversalPlatformOptions,
   getUpdatedMachine2Options,
   getUpdatedMachine3Options,
   getUpdatedMainMachineOptions,
   parseBaseServiceSelectionKey,
-  SERVICE_CATALOG,
 } from "@/lib/service-catalog";
 import { getIndexedFieldName } from "@/lib/service-fields";
 
@@ -47,6 +49,11 @@ type SearchResponse = {
 type DealServicesResponse = {
   services: PersistedDealService[];
   combinedFinalValue: string;
+  error?: string;
+};
+
+type ServiceMapsResponse = {
+  maps: ServiceCatalogRow[];
   error?: string;
 };
 
@@ -101,16 +108,20 @@ function createEmptyService(id: string, dealId: string): ServiceCardState {
 
 function hydrateService(
   service: PersistedDealService,
+  serviceMaps: ServiceCatalogRow[],
   saveState: SaveState = "idle",
   note = "",
 ): ServiceCardState {
-  return syncRowDerivedFields({
-    ...service,
-    finalValue: buildServiceFinalValue(service),
-    dirty: false,
-    saveState,
-    note,
-  });
+  return syncRowDerivedFields(
+    {
+      ...service,
+      finalValue: buildServiceFinalValue(service),
+      dirty: false,
+      saveState,
+      note,
+    },
+    serviceMaps,
+  );
 }
 
 async function fetchJson<T>(input: RequestInfo, init?: RequestInit) {
@@ -136,8 +147,12 @@ function resolveMultiValue(currentValue: string[], options: string[]) {
   return currentValue.filter((value) => options.includes(value));
 }
 
-function syncRowDerivedFields(service: ServiceCardState): ServiceCardState {
+function syncRowDerivedFields(
+  service: ServiceCardState,
+  serviceMaps: ServiceCatalogRow[],
+): ServiceCardState {
   const enhancementOptions = getEnhancementOptions(
+    serviceMaps,
     service.category,
     service.subCategory,
     service.universalPlatform,
@@ -145,6 +160,7 @@ function syncRowDerivedFields(service: ServiceCardState): ServiceCardState {
     service.flavors,
   );
   const auiOptions = getAuiOptions(
+    serviceMaps,
     service.category,
     service.subCategory,
     service.universalPlatform,
@@ -152,6 +168,7 @@ function syncRowDerivedFields(service: ServiceCardState): ServiceCardState {
     service.flavors,
   );
   const updatedMainMachineOptions = getUpdatedMainMachineOptions(
+    serviceMaps,
     service.category,
     service.subCategory,
     service.universalPlatform,
@@ -159,6 +176,7 @@ function syncRowDerivedFields(service: ServiceCardState): ServiceCardState {
     service.flavors,
   );
   const updatedMachine2Options = getUpdatedMachine2Options(
+    serviceMaps,
     service.category,
     service.subCategory,
     service.universalPlatform,
@@ -166,6 +184,7 @@ function syncRowDerivedFields(service: ServiceCardState): ServiceCardState {
     service.flavors,
   );
   const updatedMachine3Options = getUpdatedMachine3Options(
+    serviceMaps,
     service.category,
     service.subCategory,
     service.universalPlatform,
@@ -436,6 +455,7 @@ function NumberField({
 
 function ServiceCard({
   service,
+  serviceMaps,
   serviceNumber,
   baseServiceSelectionOptions,
   onCategoryChange,
@@ -449,6 +469,7 @@ function ServiceCard({
   onDelete,
 }: {
   service: ServiceCardState;
+  serviceMaps: ServiceCatalogRow[];
   serviceNumber: number;
   baseServiceSelectionOptions: SelectOption[];
   onCategoryChange: (serviceId: string, value: string) => void;
@@ -465,20 +486,26 @@ function ServiceCard({
   onSave: (serviceId: string) => void;
   onDelete: (serviceId: string) => void;
 }) {
-  const subCategoryOptions = getSubCategoryOptions(service.category).map(
+  const subCategoryOptions = getSubCategoryOptions(
+    serviceMaps,
+    service.category,
+  ).map(
     (item) => item.name,
   );
   const universalPlatformOptions = getUniversalPlatformOptions(
+    serviceMaps,
     service.category,
     service.subCategory,
   ).map((item) => item.name);
   const flavorOptions = getFlavorOptions(
+    serviceMaps,
     service.category,
     service.subCategory,
     service.universalPlatform,
     service.baseServiceName,
   );
   const enhancementOptions = getEnhancementOptions(
+    serviceMaps,
     service.category,
     service.subCategory,
     service.universalPlatform,
@@ -486,6 +513,7 @@ function ServiceCard({
     service.flavors,
   );
   const auiOptions = getAuiOptions(
+    serviceMaps,
     service.category,
     service.subCategory,
     service.universalPlatform,
@@ -493,6 +521,7 @@ function ServiceCard({
     service.flavors,
   );
   const updatedMainMachineOptions = getUpdatedMainMachineOptions(
+    serviceMaps,
     service.category,
     service.subCategory,
     service.universalPlatform,
@@ -500,6 +529,7 @@ function ServiceCard({
     service.flavors,
   );
   const updatedMachine2Options = getUpdatedMachine2Options(
+    serviceMaps,
     service.category,
     service.subCategory,
     service.universalPlatform,
@@ -507,6 +537,7 @@ function ServiceCard({
     service.flavors,
   );
   const updatedMachine3Options = getUpdatedMachine3Options(
+    serviceMaps,
     service.category,
     service.subCategory,
     service.universalPlatform,
@@ -602,7 +633,9 @@ function ServiceCard({
             value={service.category}
             onChange={(value) => onCategoryChange(service.id, value)}
             name={getIndexedFieldName("category", serviceNumber)}
-            options={toSelectOptions(SERVICE_CATALOG.map((item) => item.name))}
+            options={toSelectOptions(
+              getCategoryOptions(serviceMaps).map((item) => item.name),
+            )}
             placeholder="Select a category"
           />
           <SelectField
@@ -689,7 +722,14 @@ function ServiceCard({
   );
 }
 
-export default function DealServiceDashboard() {
+export default function DealServiceDashboard({
+  initialServiceMaps,
+}: {
+  initialServiceMaps: ServiceCatalogRow[];
+}) {
+  const [serviceMaps, setServiceMaps] = useState<ServiceCatalogRow[]>(
+    () => initialServiceMaps,
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<DealSearchResult[]>([]);
   const [searchState, setSearchState] = useState<SaveState>("idle");
@@ -702,6 +742,40 @@ export default function DealServiceDashboard() {
   const [lastSyncedValue, setLastSyncedValue] = useState("");
   const [isLoadingServices, setIsLoadingServices] = useState(false);
   const [isCreatingService, setIsCreatingService] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadServiceMaps() {
+      try {
+        const data = await fetchJson<ServiceMapsResponse>("/api/service-maps");
+
+        if (!isMounted) {
+          return;
+        }
+
+        startTransition(() => {
+          setServiceMaps(data.maps);
+        });
+      } catch {
+        // Keep the server-provided Mongo-backed mappings if refresh fails.
+      }
+    }
+
+    void loadServiceMaps();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    startTransition(() => {
+      setServices((current) =>
+        current.map((service) => syncRowDerivedFields(service, serviceMaps)),
+      );
+    });
+  }, [serviceMaps]);
 
   const runDealSearch = useEffectEvent(async (query: string, signal: AbortSignal) => {
     setSearchState("saving");
@@ -759,7 +833,12 @@ export default function DealServiceDashboard() {
       startTransition(() => {
         setServices(
           data.services.map((service) =>
-            hydrateService(service, "idle", "Loaded successfully."),
+            hydrateService(
+              service,
+              serviceMaps,
+              "idle",
+              "Loaded successfully.",
+            ),
           ),
         );
         setLastSyncedValue(data.combinedFinalValue);
@@ -880,7 +959,7 @@ export default function DealServiceDashboard() {
   }
 
   function handleBaseServiceSelect(serviceId: string, value: string) {
-    const parsedSelection = parseBaseServiceSelectionKey(value);
+    const parsedSelection = parseBaseServiceSelectionKey(value, serviceMaps);
 
     updateServiceState(serviceId, (service) => {
       if (!parsedSelection) {
@@ -900,19 +979,22 @@ export default function DealServiceDashboard() {
       }
 
       return markDirty(
-        syncRowDerivedFields({
-          ...service,
-          category: parsedSelection.category,
-          subCategory: parsedSelection.subCategory,
-          universalPlatform: parsedSelection.universalPlatform,
-          baseServiceName: parsedSelection.baseServiceName,
-          flavors: [],
-          serviceSpecificEnhancements: [],
-          aui: "",
-          updatedMainMachine: "",
-          updatedMachine2: "",
-          updatedMachine3: "",
-        }),
+        syncRowDerivedFields(
+          {
+            ...service,
+            category: parsedSelection.category,
+            subCategory: parsedSelection.subCategory,
+            universalPlatform: parsedSelection.universalPlatform,
+            baseServiceName: parsedSelection.baseServiceName,
+            flavors: [],
+            serviceSpecificEnhancements: [],
+            aui: "",
+            updatedMainMachine: "",
+            updatedMachine2: "",
+            updatedMachine3: "",
+          },
+          serviceMaps,
+        ),
       );
     });
   }
@@ -920,15 +1002,18 @@ export default function DealServiceDashboard() {
   function handleFlavorsChange(serviceId: string, value: string[]) {
     updateServiceState(serviceId, (service) =>
       markDirty(
-        syncRowDerivedFields({
-          ...service,
-          flavors: value,
-          serviceSpecificEnhancements: [],
-          aui: "",
-          updatedMainMachine: "",
-          updatedMachine2: "",
-          updatedMachine3: "",
-        }),
+        syncRowDerivedFields(
+          {
+            ...service,
+            flavors: value,
+            serviceSpecificEnhancements: [],
+            aui: "",
+            updatedMainMachine: "",
+            updatedMachine2: "",
+            updatedMachine3: "",
+          },
+          serviceMaps,
+        ),
       ),
     );
   }
@@ -1004,6 +1089,7 @@ export default function DealServiceDashboard() {
             item.id === serviceId
               ? hydrateService(
                   data.service,
+                  serviceMaps,
                   "saved",
                   "Saved successfully.",
                 )
@@ -1089,6 +1175,12 @@ export default function DealServiceDashboard() {
               CrepesALatte
             </span>
           </div>
+          <Link
+            href="/admin"
+            className="hidden rounded-lg border border-[#d3c3c0]/40 px-3 py-1.5 text-sm font-semibold text-[#271310] transition hover:bg-white sm:inline-flex"
+          >
+            Manage maps
+          </Link>
 
           {/* Search */}
           <form 
@@ -1219,8 +1311,10 @@ export default function DealServiceDashboard() {
               <ServiceCard
                 key={service.id}
                 service={service}
+                serviceMaps={serviceMaps}
                 serviceNumber={index + 1}
                 baseServiceSelectionOptions={getBaseServiceSelectionOptions(
+                  serviceMaps,
                   service.category,
                   service.subCategory,
                   service.universalPlatform,
