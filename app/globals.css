@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  --font-manrope: "Manrope", "Segoe UI", system-ui, sans-serif;
+  --font-inter: "Inter", "Segoe UI", system-ui, sans-serif;
   --primary: #271310;
   --on-primary: #ffffff;
   --primary-container: #3e2723;

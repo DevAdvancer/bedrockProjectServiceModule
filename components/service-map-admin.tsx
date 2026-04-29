@@ -224,11 +224,16 @@ function createMapMutationPayload(
     };
   }
 
+  const formFlavors = typeof form.flavors === "string" ? form.flavors.trim() : "";
+  const formEnhancements =
+    typeof form.serviceSpecificEnhancements === "string"
+      ? form.serviceSpecificEnhancements.trim()
+      : "";
+
   return {
     ...form,
-    flavors: form.flavors.trim() || derivedFlavors,
-    serviceSpecificEnhancements:
-      form.serviceSpecificEnhancements.trim() || derivedEnhancements,
+    flavors: formFlavors || derivedFlavors,
+    serviceSpecificEnhancements: formEnhancements || derivedEnhancements,
     sortOrder:
       typeof form.sortOrder === "string"
         ? form.sortOrder.trim()
