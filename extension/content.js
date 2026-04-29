@@ -4,6 +4,19 @@
   if (window.self !== window.top) return; // Don't run in iframes
   if (document.getElementById('crepesalatte-extension-root')) return;
 
+  function getExtensionUrl(path) {
+    try {
+      if (!chrome?.runtime?.id) return "";
+      return chrome.runtime.getURL(path);
+    } catch {
+      return "";
+    }
+  }
+
+  function removeInjectedUi() {
+    root.remove();
+  }
+
   const root = document.createElement('div');
   root.id = 'crepesalatte-extension-root';
   
@@ -12,7 +25,8 @@
   fab.className = 'crepesalatte-extension-fab';
   fab.title = 'Open CrepesALatte Service Studio';
   
-  const iconUrl = chrome.runtime.getURL('icons/icon48.png');
+  const iconUrl = getExtensionUrl('icons/icon48.png');
+  if (!iconUrl) return;
   const img = document.createElement('img');
   img.src = iconUrl;
   img.alt = 'CrepesALatte Icon';
@@ -26,9 +40,15 @@
   const iframe = document.createElement('iframe');
   
   function checkUrlAndUpdateIframe() {
+    const popupPath = getExtensionUrl('popup.html');
+    if (!popupPath) {
+      removeInjectedUi();
+      return;
+    }
+
     // Ensure we only match /deals/ID and explicitly reject /deals/view/ID
-    const match = window.location.href.match(/(?:deals\/)(\d+)/);
-    const popupUrl = new URL(chrome.runtime.getURL('popup.html'));
+    const match = window.location.pathname.match(/\/deals\/(?!view\/)(\d+)(?:\/|$)/);
+    const popupUrl = new URL(popupPath);
     popupUrl.searchParams.set('sidebar', 'true');
     if (match && match[1]) {
       popupUrl.searchParams.set('dealId', match[1]);
@@ -66,11 +86,17 @@
   let initialTop;
 
   // Load saved position
-  chrome.storage.local.get(['fabTopPosition'], (result) => {
-    if (result.fabTopPosition) {
-      fab.style.top = result.fabTopPosition;
-    }
-  });
+  try {
+    chrome.storage.local.get(['fabTopPosition'], (result) => {
+      if (chrome.runtime.lastError) return;
+      if (result.fabTopPosition) {
+        fab.style.top = result.fabTopPosition;
+      }
+    });
+  } catch {
+    removeInjectedUi();
+    return;
+  }
 
   function toggleSidebar() {
     isOpen = !isOpen;
@@ -125,7 +151,7 @@
     }
   }
 
-  function onMouseUp(e) {
+  function onMouseUp() {
     if (!isDragging) return;
     isDragging = false;
     
@@ -136,7 +162,11 @@
     fab.style.transition = '';
     
     if (hasMoved) {
-      chrome.storage.local.set({ fabTopPosition: fab.style.top });
+      try {
+        chrome.storage.local.set({ fabTopPosition: fab.style.top });
+      } catch {
+        removeInjectedUi();
+      }
     }
     
     // Reset hasMoved asynchronously so that the click event (which fires after mouseup) can see it

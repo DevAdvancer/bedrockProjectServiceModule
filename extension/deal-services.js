@@ -22,12 +22,14 @@ export function buildServiceFinalValue(service) {
   const subCategory = normalizeText(service.subCategory);
   const baseServiceName = normalizeText(service.baseServiceName);
   const normalizedFlavors = normalizeStringArray(service.flavors);
+  const normalizedEnhancements = normalizeStringArray(service.serviceSpecificEnhancements || []);
+  const selectedItems = normalizedFlavors.length > 0 ? normalizedFlavors : normalizedEnhancements;
 
-  if (!category || !subCategory || !baseServiceName || normalizedFlavors.length === 0) {
+  if (!category || !subCategory || !baseServiceName || selectedItems.length === 0) {
     return "";
   }
 
-  return `${category}_${subCategory}_${baseServiceName}|${normalizedFlavors.join(",")}`;
+  return `${category}_${subCategory}_${baseServiceName}|${selectedItems.join(",")}`;
 }
 
 export function buildCombinedFinalValue(services) {

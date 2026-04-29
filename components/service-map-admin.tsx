@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { FormEvent, startTransition, useEffect, useState } from "react";
-import { ServiceCatalogRow } from "@/lib/service-catalog";
+import {
+  getReadOnlyServiceDetails,
+  ServiceCatalogRow,
+} from "@/lib/service-catalog";
 
 type ServiceMapsResponse = {
   maps: ServiceCatalogRow[];
@@ -22,33 +25,73 @@ type DeleteServiceMapResponse = {
 type FormState = {
   sortOrder: string;
   isActive: boolean;
+  status: string;
   serviceOrderId: string;
   category: string;
   subCategory: string;
   universalPlatform: string;
   baseServiceName: string;
+  itemType: string;
+  flavorEnhancementItem: string;
   flavors: string;
   serviceSpecificEnhancements: string;
   aui: string;
+  groceryYN: string;
+  groceryNeeds: string;
+  kitchenPrepNeededYN: string;
+  kitchenPrepItems: string;
+  carryThroughYN: string;
+  carryThroughItems: string;
+  orderItemsFromCC: string;
+  ccItems: string;
   updatedMainMachine: string;
   updatedMachine2: string;
   updatedMachine3: string;
+  strategicAttributes: string;
+  exclusivityKeys: string;
+  staff: string;
+  preSupplyTier: string;
+  twoDayPrice: string;
+  threeDayPrice: string;
+  fourDayPrice: string;
+  notes: string;
+  sourceRowNumber: string;
 };
 
 const EMPTY_FORM: FormState = {
   sortOrder: "",
   isActive: true,
+  status: "",
   serviceOrderId: "",
   category: "",
   subCategory: "",
   universalPlatform: "",
   baseServiceName: "",
+  itemType: "",
+  flavorEnhancementItem: "",
   flavors: "",
   serviceSpecificEnhancements: "",
   aui: "",
+  groceryYN: "",
+  groceryNeeds: "",
+  kitchenPrepNeededYN: "",
+  kitchenPrepItems: "",
+  carryThroughYN: "",
+  carryThroughItems: "",
+  orderItemsFromCC: "",
+  ccItems: "",
   updatedMainMachine: "",
   updatedMachine2: "",
   updatedMachine3: "",
+  strategicAttributes: "",
+  exclusivityKeys: "",
+  staff: "",
+  preSupplyTier: "",
+  twoDayPrice: "",
+  threeDayPrice: "",
+  fourDayPrice: "",
+  notes: "",
+  sourceRowNumber: "",
 };
 
 function formatCsv(values: string[]) {
@@ -63,17 +106,37 @@ function createFormState(map?: ServiceCatalogRow): FormState {
   return {
     sortOrder: String(map.sortOrder),
     isActive: map.isActive,
+    status: map.status,
     serviceOrderId: map.serviceOrderId,
     category: map.category,
     subCategory: map.subCategory,
     universalPlatform: map.universalPlatform,
     baseServiceName: map.baseServiceName,
+    itemType: map.itemType,
+    flavorEnhancementItem: map.flavorEnhancementItem,
     flavors: formatCsv(map.flavors),
     serviceSpecificEnhancements: formatCsv(map.serviceSpecificEnhancements),
     aui: formatCsv(map.aui),
+    groceryYN: map.groceryYN,
+    groceryNeeds: map.groceryNeeds,
+    kitchenPrepNeededYN: map.kitchenPrepNeededYN,
+    kitchenPrepItems: map.kitchenPrepItems,
+    carryThroughYN: map.carryThroughYN,
+    carryThroughItems: map.carryThroughItems,
+    orderItemsFromCC: map.orderItemsFromCC,
+    ccItems: map.ccItems,
     updatedMainMachine: formatCsv(map.updatedMainMachine),
     updatedMachine2: formatCsv(map.updatedMachine2),
     updatedMachine3: formatCsv(map.updatedMachine3),
+    strategicAttributes: map.strategicAttributes,
+    exclusivityKeys: map.exclusivityKeys,
+    staff: map.staff,
+    preSupplyTier: map.preSupplyTier,
+    twoDayPrice: map.twoDayPrice,
+    threeDayPrice: map.threeDayPrice,
+    fourDayPrice: map.fourDayPrice,
+    notes: map.notes,
+    sourceRowNumber: String(map.sourceRowNumber),
   };
 }
 
@@ -112,17 +175,37 @@ function createMapMutationPayload(
     return {
       sortOrder: String(form.sortOrder),
       isActive: isActiveOverride ?? form.isActive,
+      status: form.status,
       serviceOrderId: form.serviceOrderId,
       category: form.category,
       subCategory: form.subCategory,
       universalPlatform: form.universalPlatform,
       baseServiceName: form.baseServiceName,
+      itemType: form.itemType,
+      flavorEnhancementItem: form.flavorEnhancementItem,
       flavors: form.flavors,
       serviceSpecificEnhancements: form.serviceSpecificEnhancements,
       aui: form.aui,
+      groceryYN: form.groceryYN,
+      groceryNeeds: form.groceryNeeds,
+      kitchenPrepNeededYN: form.kitchenPrepNeededYN,
+      kitchenPrepItems: form.kitchenPrepItems,
+      carryThroughYN: form.carryThroughYN,
+      carryThroughItems: form.carryThroughItems,
+      orderItemsFromCC: form.orderItemsFromCC,
+      ccItems: form.ccItems,
       updatedMainMachine: form.updatedMainMachine,
       updatedMachine2: form.updatedMachine2,
       updatedMachine3: form.updatedMachine3,
+      strategicAttributes: form.strategicAttributes,
+      exclusivityKeys: form.exclusivityKeys,
+      staff: form.staff,
+      preSupplyTier: form.preSupplyTier,
+      twoDayPrice: form.twoDayPrice,
+      threeDayPrice: form.threeDayPrice,
+      fourDayPrice: form.fourDayPrice,
+      notes: form.notes,
+      sourceRowNumber: String(form.sourceRowNumber || form.sortOrder),
     };
   }
 
@@ -253,6 +336,13 @@ export default function ServiceMapAdmin() {
       ...map.updatedMainMachine,
       ...map.updatedMachine2,
       ...map.updatedMachine3,
+      ...getReadOnlyServiceDetails(
+        [map],
+        map.category,
+        map.subCategory,
+        map.universalPlatform,
+        map.baseServiceName,
+      ).map((detail) => detail.value),
       map.isActive ? "active" : "inactive",
     ]
       .join(" ")
@@ -535,10 +625,16 @@ export default function ServiceMapAdmin() {
                 description="Active rows appear in the main dashboard dropdowns. Inactive rows stay in admin only."
               />
               <Field
+                label="Services Status"
+                value={form.status}
+                onChange={(value) => updateField("status", value)}
+                placeholder="No Change"
+              />
+              <Field
                 label="Service Order ID"
                 value={form.serviceOrderId}
                 onChange={(value) => updateField("serviceOrderId", value)}
-                placeholder="Optional internal ID"
+                placeholder="NATL C AOB 0001"
               />
               <Field
                 label="Category"
@@ -565,6 +661,18 @@ export default function ServiceMapAdmin() {
                 placeholder="ALC: Cold Brew"
               />
               <Field
+                label="Type"
+                value={form.itemType}
+                onChange={(value) => updateField("itemType", value)}
+                placeholder="Flavor, Enh., Modifier"
+              />
+              <Field
+                label="Flavor / Enhancement Item"
+                value={form.flavorEnhancementItem}
+                onChange={(value) => updateField("flavorEnhancementItem", value)}
+                placeholder="Granola Bites"
+              />
+              <Field
                 label="Flavors"
                 value={form.flavors}
                 onChange={(value) => updateField("flavors", value)}
@@ -588,6 +696,58 @@ export default function ServiceMapAdmin() {
                 multiline
               />
               <Field
+                label="Grocery Y/N"
+                value={form.groceryYN}
+                onChange={(value) => updateField("groceryYN", value)}
+                placeholder="Y or N"
+              />
+              <Field
+                label="Grocery Needs"
+                value={form.groceryNeeds}
+                onChange={(value) => updateField("groceryNeeds", value)}
+                placeholder="Ingredient list"
+                multiline
+              />
+              <Field
+                label="Kitchen Prep Needed Y/N"
+                value={form.kitchenPrepNeededYN}
+                onChange={(value) => updateField("kitchenPrepNeededYN", value)}
+                placeholder="Y or N"
+              />
+              <Field
+                label="Kitchen Prep Items"
+                value={form.kitchenPrepItems}
+                onChange={(value) => updateField("kitchenPrepItems", value)}
+                placeholder="Prep items"
+                multiline
+              />
+              <Field
+                label="Carry Through Y/N"
+                value={form.carryThroughYN}
+                onChange={(value) => updateField("carryThroughYN", value)}
+                placeholder="Y or N"
+              />
+              <Field
+                label="Carry Through Items"
+                value={form.carryThroughItems}
+                onChange={(value) => updateField("carryThroughItems", value)}
+                placeholder="Carry through items"
+                multiline
+              />
+              <Field
+                label="Order Items from CC?"
+                value={form.orderItemsFromCC}
+                onChange={(value) => updateField("orderItemsFromCC", value)}
+                placeholder="Y or N"
+              />
+              <Field
+                label="CC Items"
+                value={form.ccItems}
+                onChange={(value) => updateField("ccItems", value)}
+                placeholder="CC items"
+                multiline
+              />
+              <Field
                 label="Updated Main Machine"
                 value={form.updatedMainMachine}
                 onChange={(value) => updateField("updatedMainMachine", value)}
@@ -607,6 +767,63 @@ export default function ServiceMapAdmin() {
                 onChange={(value) => updateField("updatedMachine3", value)}
                 placeholder="Optional comma-separated values"
                 multiline
+              />
+              <Field
+                label="Strategic Attributes"
+                value={form.strategicAttributes}
+                onChange={(value) => updateField("strategicAttributes", value)}
+                placeholder="Wellness, Fuel and Energy"
+                multiline
+              />
+              <Field
+                label="Exclusivity Keys"
+                value={form.exclusivityKeys}
+                onChange={(value) => updateField("exclusivityKeys", value)}
+                placeholder="None"
+              />
+              <Field
+                label="Staff"
+                value={form.staff}
+                onChange={(value) => updateField("staff", value)}
+                placeholder="1S"
+              />
+              <Field
+                label="Pre-Supply Tier"
+                value={form.preSupplyTier}
+                onChange={(value) => updateField("preSupplyTier", value)}
+                placeholder="n/a"
+              />
+              <Field
+                label="2-Day ($)"
+                value={form.twoDayPrice}
+                onChange={(value) => updateField("twoDayPrice", value)}
+                placeholder="n/a"
+              />
+              <Field
+                label="3-Day ($)"
+                value={form.threeDayPrice}
+                onChange={(value) => updateField("threeDayPrice", value)}
+                placeholder="n/a"
+              />
+              <Field
+                label="4-Day ($)"
+                value={form.fourDayPrice}
+                onChange={(value) => updateField("fourDayPrice", value)}
+                placeholder="n/a"
+              />
+              <Field
+                label="Notes"
+                value={form.notes}
+                onChange={(value) => updateField("notes", value)}
+                placeholder="Optional notes"
+                multiline
+              />
+              <Field
+                label="Source Row Number"
+                type="number"
+                value={form.sourceRowNumber}
+                onChange={(value) => updateField("sourceRowNumber", value)}
+                placeholder="2"
               />
 
               <button
@@ -745,6 +962,19 @@ export default function ServiceMapAdmin() {
                       label="Updated Machine 3"
                       value={formatCsv(map.updatedMachine3)}
                     />
+                    {getReadOnlyServiceDetails(
+                      [map],
+                      map.category,
+                      map.subCategory,
+                      map.universalPlatform,
+                      map.baseServiceName,
+                    ).map((detail) => (
+                      <MapValue
+                        key={detail.label}
+                        label={detail.label}
+                        value={detail.value}
+                      />
+                    ))}
                   </div>
                 </article>
               ))

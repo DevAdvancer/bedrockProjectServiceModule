@@ -13,8 +13,8 @@ import {
   buildCombinedFinalValue,
   buildServiceFinalValue,
   DealSearchResult,
+  EMPTY_READ_ONLY_SERVICE_DETAILS,
   PersistedDealService,
-  ServiceFormValues,
 } from "@/lib/deal-services";
 import {
   buildBaseServiceSelectionKey,
@@ -23,9 +23,10 @@ import {
   getCategoryOptions,
   getEnhancementOptions,
   getFlavorOptions,
+  getReadOnlyServiceDetailValues,
+  getReadOnlyServiceDetails,
   ServiceCatalogRow,
   getSubCategoryOptions,
-  getUniversalPlatformOptions,
   getUpdatedMachine2Options,
   getUpdatedMachine3Options,
   getUpdatedMainMachineOptions,
@@ -99,6 +100,7 @@ function createEmptyService(id: string, dealId: string): ServiceCardState {
     updatedMachine2: "",
     updatedMachine3: "",
     price: null,
+    catalogDetails: EMPTY_READ_ONLY_SERVICE_DETAILS,
     finalValue: "",
     dirty: true,
     saveState: "idle",
@@ -115,6 +117,7 @@ function hydrateService(
   return syncRowDerivedFields(
     {
       ...service,
+      catalogDetails: service.catalogDetails ?? EMPTY_READ_ONLY_SERVICE_DETAILS,
       finalValue: buildServiceFinalValue(service),
       dirty: false,
       saveState,
@@ -191,25 +194,36 @@ function syncRowDerivedFields(
     service.baseServiceName,
     service.flavors,
   );
+  const catalogDetails = getReadOnlyServiceDetailValues(
+    serviceMaps,
+    service.category,
+    service.subCategory,
+    service.universalPlatform,
+    service.baseServiceName,
+    service.flavors,
+    service.serviceSpecificEnhancements,
+  );
 
   return {
     ...service,
+    catalogDetails,
+    universalPlatform: catalogDetails.universalPlatform || service.universalPlatform,
+    aui: catalogDetails.aui || resolveSingleValue(service.aui, auiOptions),
+    updatedMainMachine:
+      catalogDetails.updatedMainMachine ||
+      resolveSingleValue(
+        service.updatedMainMachine,
+        updatedMainMachineOptions,
+      ),
+    updatedMachine2:
+      catalogDetails.updatedMachine2 ||
+      resolveSingleValue(service.updatedMachine2, updatedMachine2Options),
+    updatedMachine3:
+      catalogDetails.updatedMachine3 ||
+      resolveSingleValue(service.updatedMachine3, updatedMachine3Options),
     serviceSpecificEnhancements: resolveMultiValue(
       service.serviceSpecificEnhancements,
       enhancementOptions,
-    ),
-    aui: resolveSingleValue(service.aui, auiOptions),
-    updatedMainMachine: resolveSingleValue(
-      service.updatedMainMachine,
-      updatedMainMachineOptions,
-    ),
-    updatedMachine2: resolveSingleValue(
-      service.updatedMachine2,
-      updatedMachine2Options,
-    ),
-    updatedMachine3: resolveSingleValue(
-      service.updatedMachine3,
-      updatedMachine3Options,
     ),
   };
 }
@@ -417,39 +431,36 @@ function MultiSelectField({
   );
 }
 
-function NumberField({
-  label,
-  value,
-  onChange,
-  placeholder,
-  disabled = false,
+function ReadOnlyDetailGrid({
+  details,
 }: {
-  label: string;
-  value: number | null | undefined;
-  onChange: (value: number | null) => void;
-  placeholder: string;
-  disabled?: boolean;
+  details: Array<{ label: string; value: string }>;
 }) {
+  if (details.length === 0) {
+    return null;
+  }
+
   return (
-    <label className="grid gap-3">
-      <FieldLabel label={label} />
-      <div className="flex items-center rounded-lg border border-[#d3c3c0]/30 bg-white px-4 py-3 transition focus-within:border-[#271310] focus-within:ring-1 focus-within:ring-[#271310]">
-        <span className="mr-3 text-sm font-semibold text-[#271310]/40">$</span>
-        <input
-          type="number"
-          min="0"
-          step="0.01"
-          value={value ?? ""}
-          placeholder={placeholder}
-          disabled={disabled}
-          className="w-full border-none bg-transparent p-0 text-sm font-semibold text-[#271310] outline-none focus:ring-0 disabled:cursor-not-allowed"
-          onChange={(event) => {
-            const nextValue = event.target.value.trim();
-            onChange(nextValue ? Number(nextValue) : null);
-          }}
-        />
+    <div className="mt-8 rounded-2xl border border-[#d3c3c0]/20 bg-[#fdf9f6] p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <FieldLabel label="Catalog Details" />
+        <span className="rounded-md bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-[#504442]/50">
+          View only
+        </span>
       </div>
-    </label>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {details.map((detail) => (
+          <div key={detail.label} className="grid gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[#504442]/50">
+              {detail.label}
+            </span>
+            <span className="text-sm leading-6 text-[#271310]">
+              {detail.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -460,11 +471,9 @@ function ServiceCard({
   baseServiceSelectionOptions,
   onCategoryChange,
   onSubCategoryChange,
-  onUniversalPlatformChange,
   onBaseServiceSelect,
   onFlavorsChange,
   onEnhancementsChange,
-  onFieldChange,
   onSave,
   onDelete,
 }: {
@@ -474,15 +483,9 @@ function ServiceCard({
   baseServiceSelectionOptions: SelectOption[];
   onCategoryChange: (serviceId: string, value: string) => void;
   onSubCategoryChange: (serviceId: string, value: string) => void;
-  onUniversalPlatformChange: (serviceId: string, value: string) => void;
   onBaseServiceSelect: (serviceId: string, value: string) => void;
   onFlavorsChange: (serviceId: string, value: string[]) => void;
   onEnhancementsChange: (serviceId: string, value: string[]) => void;
-  onFieldChange: <K extends keyof ServiceFormValues>(
-    serviceId: string,
-    field: K,
-    value: ServiceFormValues[K],
-  ) => void;
   onSave: (serviceId: string) => void;
   onDelete: (serviceId: string) => void;
 }) {
@@ -492,11 +495,6 @@ function ServiceCard({
   ).map(
     (item) => item.name,
   );
-  const universalPlatformOptions = getUniversalPlatformOptions(
-    serviceMaps,
-    service.category,
-    service.subCategory,
-  ).map((item) => item.name);
   const flavorOptions = getFlavorOptions(
     serviceMaps,
     service.category,
@@ -512,38 +510,6 @@ function ServiceCard({
     service.baseServiceName,
     service.flavors,
   );
-  const auiOptions = getAuiOptions(
-    serviceMaps,
-    service.category,
-    service.subCategory,
-    service.universalPlatform,
-    service.baseServiceName,
-    service.flavors,
-  );
-  const updatedMainMachineOptions = getUpdatedMainMachineOptions(
-    serviceMaps,
-    service.category,
-    service.subCategory,
-    service.universalPlatform,
-    service.baseServiceName,
-    service.flavors,
-  );
-  const updatedMachine2Options = getUpdatedMachine2Options(
-    serviceMaps,
-    service.category,
-    service.subCategory,
-    service.universalPlatform,
-    service.baseServiceName,
-    service.flavors,
-  );
-  const updatedMachine3Options = getUpdatedMachine3Options(
-    serviceMaps,
-    service.category,
-    service.subCategory,
-    service.universalPlatform,
-    service.baseServiceName,
-    service.flavors,
-  );
   const baseServiceSelectionKey = service.baseServiceName
     ? buildBaseServiceSelectionKey(
         service.category,
@@ -552,9 +518,17 @@ function ServiceCard({
         service.baseServiceName,
       )
     : "";
-  const enhancementStepReady = service.flavors.length > 0;
-  const auiStepReady = auiOptions.length === 0 || Boolean(service.aui);
-  const finalValue = buildServiceFinalValue(service);
+  const enhancementFieldReady = Boolean(service.baseServiceName) &&
+    (service.flavors.length > 0 || flavorOptions.length === 0);
+  const readOnlyDetails = getReadOnlyServiceDetails(
+    serviceMaps,
+    service.category,
+    service.subCategory,
+    service.universalPlatform,
+    service.baseServiceName,
+    service.flavors,
+    service.serviceSpecificEnhancements,
+  );
   const statusLabel =
     service.saveState === "saved"
       ? "Saved"
@@ -622,13 +596,6 @@ function ServiceCard({
       <div className="p-8">
         <div className="grid grid-cols-1 gap-x-8 gap-y-10 md:grid-cols-2 lg:grid-cols-3">
           <SelectField
-            label="Base Service Name"
-            value={baseServiceSelectionKey}
-            onChange={(value) => onBaseServiceSelect(service.id, value)}
-            options={baseServiceSelectionOptions}
-            placeholder="Select a base service"
-          />
-          <SelectField
             label="Category"
             value={service.category}
             onChange={(value) => onCategoryChange(service.id, value)}
@@ -647,14 +614,14 @@ function ServiceCard({
             disabled={!service.category}
           />
           <SelectField
-            label="Universal Platform"
-            value={service.universalPlatform}
-            onChange={(value) => onUniversalPlatformChange(service.id, value)}
-            options={toSelectOptions(universalPlatformOptions)}
-            placeholder="Select a universal platform"
+            label="Base Service Name"
+            value={baseServiceSelectionKey}
+            onChange={(value) => onBaseServiceSelect(service.id, value)}
+            options={baseServiceSelectionOptions}
+            placeholder="Select a base service"
             disabled={!service.subCategory}
           />
-          {service.baseServiceName ? (
+          {service.baseServiceName && flavorOptions.length > 0 ? (
             <MultiSelectField
               label="Flavors"
               value={service.flavors}
@@ -663,7 +630,7 @@ function ServiceCard({
               placeholder="Select one or more flavors"
             />
           ) : null}
-          {service.flavors.length > 0 ? (
+          {enhancementFieldReady ? (
             <MultiSelectField
               label="Service-Specific Enhancements"
               value={service.serviceSpecificEnhancements}
@@ -672,51 +639,8 @@ function ServiceCard({
               placeholder="Select enhancements"
             />
           ) : null}
-          {enhancementStepReady ? (
-            <SelectField
-              label="AUI"
-              value={service.aui}
-              onChange={(value) =>
-                onFieldChange(service.id, "aui", value as ServiceFormValues["aui"])
-              }
-              options={toSelectOptions(auiOptions)}
-              placeholder="Select an AUI value"
-            />
-          ) : null}
-          {enhancementStepReady && auiStepReady ? (
-            <SelectField
-              label="Updated Main Machine"
-              value={service.updatedMainMachine}
-              onChange={(value) => onFieldChange(service.id, "updatedMainMachine", value)}
-              options={toSelectOptions(updatedMainMachineOptions)}
-              placeholder={updatedMainMachineOptions.length > 0 ? "Select a machine" : "No machine for this row"}
-            />
-          ) : null}
-          {enhancementStepReady && auiStepReady ? (
-            <SelectField
-              label="Updated Machine 2"
-              value={service.updatedMachine2}
-              onChange={(value) => onFieldChange(service.id, "updatedMachine2", value)}
-              options={toSelectOptions(updatedMachine2Options)}
-              placeholder={updatedMachine2Options.length > 0 ? "Select a machine" : "No machine for this row"}
-            />
-          ) : null}
-          {enhancementStepReady && auiStepReady ? (
-            <SelectField
-              label="Updated Machine 3"
-              value={service.updatedMachine3}
-              onChange={(value) => onFieldChange(service.id, "updatedMachine3", value)}
-              options={toSelectOptions(updatedMachine3Options)}
-              placeholder={updatedMachine3Options.length > 0 ? "Select a machine" : "No machine for this row"}
-            />
-          ) : null}
-          <NumberField
-            label="Price (USD)"
-            value={service.price}
-            onChange={(value) => onFieldChange(service.id, "price", value)}
-            placeholder="0.00"
-          />
         </div>
+        <ReadOnlyDetailGrid details={readOnlyDetails} />
       </div>
     </article>
   );
@@ -942,22 +866,6 @@ export default function DealServiceDashboard({
     );
   }
 
-  function handleUniversalPlatformChange(serviceId: string, value: string) {
-    updateServiceState(serviceId, (service) =>
-      markDirty({
-        ...service,
-        universalPlatform: value,
-        baseServiceName: "",
-        flavors: [],
-        serviceSpecificEnhancements: [],
-        aui: "",
-        updatedMainMachine: "",
-        updatedMachine2: "",
-        updatedMachine3: "",
-      }),
-    );
-  }
-
   function handleBaseServiceSelect(serviceId: string, value: string) {
     const parsedSelection = parseBaseServiceSelectionKey(value, serviceMaps);
 
@@ -1024,19 +932,6 @@ export default function DealServiceDashboard({
         ...service,
         serviceSpecificEnhancements: value,
       }),
-    );
-  }
-
-  function handleFieldChange<K extends keyof ServiceFormValues>(
-    serviceId: string,
-    field: K,
-    value: ServiceFormValues[K],
-  ) {
-    updateServiceState(serviceId, (service) =>
-      markDirty({
-        ...service,
-        [field]: value,
-      } as ServiceCardState),
     );
   }
 
@@ -1317,18 +1212,15 @@ export default function DealServiceDashboard({
                   serviceMaps,
                   service.category,
                   service.subCategory,
-                  service.universalPlatform,
                 ).map((option) => ({
                   value: option.key,
                   label: option.label,
                 }))}
                 onCategoryChange={handleCategoryChange}
                 onSubCategoryChange={handleSubCategoryChange}
-                onUniversalPlatformChange={handleUniversalPlatformChange}
                 onBaseServiceSelect={handleBaseServiceSelect}
                 onFlavorsChange={handleFlavorsChange}
                 onEnhancementsChange={handleEnhancementsChange}
-                onFieldChange={handleFieldChange}
                 onSave={(cardId) => void handleSaveService(cardId)}
                 onDelete={(cardId) => void handleDeleteService(cardId)}
               />

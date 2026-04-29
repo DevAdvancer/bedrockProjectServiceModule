@@ -76,19 +76,40 @@ export function parseServiceMapPayload(
       ? fallbackSortOrder
       : null);
   const isActive = readBoolean(data.isActive, true);
+  const status = readTrimmedString(data.status);
   const serviceOrderId = readTrimmedString(data.serviceOrderId);
   const category = readTrimmedString(data.category);
   const subCategory = readTrimmedString(data.subCategory);
   const universalPlatform = readTrimmedString(data.universalPlatform);
   const baseServiceName = readTrimmedString(data.baseServiceName);
+  const itemType = readTrimmedString(data.itemType);
+  const flavorEnhancementItem = readTrimmedString(data.flavorEnhancementItem);
   const flavors = readCsvField(data.flavors);
   const serviceSpecificEnhancements = readCsvField(
     data.serviceSpecificEnhancements,
   );
   const aui = readCsvField(data.aui);
+  const groceryYN = readTrimmedString(data.groceryYN);
+  const groceryNeeds = readTrimmedString(data.groceryNeeds);
+  const kitchenPrepNeededYN = readTrimmedString(data.kitchenPrepNeededYN);
+  const kitchenPrepItems = readTrimmedString(data.kitchenPrepItems);
+  const carryThroughYN = readTrimmedString(data.carryThroughYN);
+  const carryThroughItems = readTrimmedString(data.carryThroughItems);
+  const orderItemsFromCC = readTrimmedString(data.orderItemsFromCC);
+  const ccItems = readTrimmedString(data.ccItems);
   const updatedMainMachine = readCsvField(data.updatedMainMachine);
   const updatedMachine2 = readCsvField(data.updatedMachine2);
   const updatedMachine3 = readCsvField(data.updatedMachine3);
+  const strategicAttributes = readTrimmedString(data.strategicAttributes);
+  const exclusivityKeys = readTrimmedString(data.exclusivityKeys);
+  const staff = readTrimmedString(data.staff);
+  const preSupplyTier = readTrimmedString(data.preSupplyTier);
+  const twoDayPrice = readTrimmedString(data.twoDayPrice);
+  const threeDayPrice = readTrimmedString(data.threeDayPrice);
+  const fourDayPrice = readTrimmedString(data.fourDayPrice);
+  const notes = readTrimmedString(data.notes);
+  const sourceRowNumber =
+    readPositiveInteger(data.sourceRowNumber) ?? sortOrder ?? 1;
 
   if (sortOrder === null) {
     return {
@@ -105,10 +126,11 @@ export function parseServiceMapPayload(
     };
   }
 
-  if (flavors.length === 0) {
+  if (flavors.length === 0 && serviceSpecificEnhancements.length === 0) {
     return {
       success: false as const,
-      error: "Flavors must contain at least one comma-separated value.",
+      error:
+        "Flavors or Service-Specific Enhancements must contain at least one comma-separated value.",
     };
   }
 
@@ -117,17 +139,37 @@ export function parseServiceMapPayload(
     data: {
       sortOrder,
       isActive,
+      status,
       serviceOrderId,
       category,
       subCategory,
       universalPlatform,
       baseServiceName,
+      itemType,
+      flavorEnhancementItem,
       flavors,
       serviceSpecificEnhancements,
       aui,
+      groceryYN,
+      groceryNeeds,
+      kitchenPrepNeededYN,
+      kitchenPrepItems,
+      carryThroughYN,
+      carryThroughItems,
+      orderItemsFromCC,
+      ccItems,
       updatedMainMachine,
       updatedMachine2,
       updatedMachine3,
+      strategicAttributes,
+      exclusivityKeys,
+      staff,
+      preSupplyTier,
+      twoDayPrice,
+      threeDayPrice,
+      fourDayPrice,
+      notes,
+      sourceRowNumber,
     } satisfies ServiceMapInput,
   };
 }

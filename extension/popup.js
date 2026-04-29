@@ -3,34 +3,92 @@
 
 const API_BASE = "https://bedrock-project-service-module.vercel.app"
 const SC = window.ServiceCatalog;
+const ADMIN_ID = "admin";
+const ADMIN_PASSWORD = "CAL2026!";
+const CUSTOM_CATEGORY_VALUE = "__custom__";
 let isCatalogReady = false;
 
 // ── State ──
+let serviceMaps = [];
 let selectedDeal = null;
 let services = [];
 let isLoadingServices = false;
 let isCreatingService = false;
+let isSettingsOpen = false;
+let isSettingsAuthenticated = false;
+let isSettingsLoading = false;
+let settingsBusyMapId = null;
+let isSettingsCreateOpen = false;
+let isSettingsCreateSubmitting = false;
+let settingsEditingMapId = null;
 
 // ── DOM refs ──
 const $ = (s, el = document) => el.querySelector(s);
-const searchInput = $("#search-input");
-const searchForm = $("#search-form");
-const searchDropdown = $("#search-dropdown");
 const addServiceBtn = $("#add-service-btn");
-const activeDealBadge = $("#active-deal-badge");
-const dealNameDisplay = $("#deal-name-display");
-const clearDealBtn = $("#clear-deal-btn");
+const navDealStatus = $("#nav-deal-status");
+const navDealSignal = $("#nav-deal-signal");
+const navDealTitle = $("#nav-deal-title");
+const navDealMeta = $("#nav-deal-meta");
 const servicesContainer = $("#services-container");
 const emptyState = $("#empty-state");
 const emptyTitle = $("#empty-title");
 const emptySubtitle = $("#empty-subtitle");
 const panelNoteEl = $("#panel-note");
+const openSettingsBtn = $("#open-settings-btn");
+const settingsOverlay = $("#settings-overlay");
+const closeSettingsBtn = $("#close-settings-btn");
+const settingsAuthView = $("#settings-auth-view");
+const settingsManagerView = $("#settings-manager-view");
+const settingsAuthForm = $("#settings-auth-form");
+const settingsAdminIdInput = $("#settings-admin-id");
+const settingsAdminPasswordInput = $("#settings-admin-password");
+const settingsAuthNote = $("#settings-auth-note");
+const settingsSearchInput = $("#settings-search-input");
+const settingsNoteEl = $("#settings-note");
+const settingsListEl = $("#settings-list");
+const settingsTotalCountEl = $("#settings-total-count");
+const settingsActiveCountEl = $("#settings-active-count");
+const settingsInactiveCountEl = $("#settings-inactive-count");
+const settingsNewRowBtn = $("#settings-new-row-btn");
+const settingsCreateForm = $("#settings-create-form");
+const settingsCreateCancelBtn = $("#settings-create-cancel-btn");
+const settingsCreateResetBtn = $("#settings-create-reset-btn");
+const settingsCreateSubmitBtn = $("#settings-create-submit-btn");
+const settingsCreateSortOrderInput = $("#settings-create-sort-order");
+const settingsCreateStatusInput = $("#settings-create-status");
+const settingsCreateServiceOrderIdInput = $("#settings-create-service-order-id");
+const settingsCreateCategoryInput = $("#settings-create-category");
+const settingsCreateSubCategoryInput = $("#settings-create-sub-category");
+const settingsCreateUniversalPlatformInput = $("#settings-create-universal-platform");
+const settingsCreateBaseServiceNameInput = $("#settings-create-base-service-name");
+const settingsCreateItemTypeInput = $("#settings-create-item-type");
+const settingsCreateFlavorEnhancementItemInput = $("#settings-create-flavor-enhancement-item");
+const settingsCreateFlavorsInput = $("#settings-create-flavors");
+const settingsCreateEnhancementsInput = $("#settings-create-enhancements");
+const settingsCreateAuiInput = $("#settings-create-aui");
+const settingsCreateGroceryYnInput = $("#settings-create-grocery-yn");
+const settingsCreateGroceryNeedsInput = $("#settings-create-grocery-needs");
+const settingsCreateKitchenPrepNeededYnInput = $("#settings-create-kitchen-prep-needed-yn");
+const settingsCreateKitchenPrepItemsInput = $("#settings-create-kitchen-prep-items");
+const settingsCreateCarryThroughYnInput = $("#settings-create-carry-through-yn");
+const settingsCreateCarryThroughItemsInput = $("#settings-create-carry-through-items");
+const settingsCreateOrderItemsFromCcInput = $("#settings-create-order-items-from-cc");
+const settingsCreateCcItemsInput = $("#settings-create-cc-items");
+const settingsCreateMainMachineInput = $("#settings-create-main-machine");
+const settingsCreateMachine2Input = $("#settings-create-machine-2");
+const settingsCreateMachine3Input = $("#settings-create-machine-3");
+const settingsCreateStrategicAttributesInput = $("#settings-create-strategic-attributes");
+const settingsCreateExclusivityKeysInput = $("#settings-create-exclusivity-keys");
+const settingsCreateStaffInput = $("#settings-create-staff");
+const settingsCreatePreSupplyTierInput = $("#settings-create-pre-supply-tier");
+const settingsCreateTwoDayPriceInput = $("#settings-create-two-day-price");
+const settingsCreateThreeDayPriceInput = $("#settings-create-three-day-price");
+const settingsCreateFourDayPriceInput = $("#settings-create-four-day-price");
+const settingsCreateNotesInput = $("#settings-create-notes");
+const settingsCreateSourceRowNumberInput = $("#settings-create-source-row-number");
+const settingsCreateActiveInput = $("#settings-create-active");
 
 // ── Helpers ──
-function uuid() {
-  return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
 async function fetchJson(url, init) {
   const res = await fetch(API_BASE + url, init);
   const data = await res.json().catch(() => ({}));
@@ -39,14 +97,219 @@ async function fetchJson(url, init) {
 }
 
 function setPanelNote(text) { panelNoteEl.textContent = text; }
+function setSettingsAuthNote(text, tone = "info") {
+  settingsAuthNote.textContent = text;
+  if (tone === "info") {
+    delete settingsAuthNote.dataset.tone;
+    return;
+  }
+  settingsAuthNote.dataset.tone = tone;
+}
+function setSettingsNote(text, tone = "info") {
+  settingsNoteEl.textContent = text;
+  if (tone === "info") {
+    delete settingsNoteEl.dataset.tone;
+    return;
+  }
+  settingsNoteEl.dataset.tone = tone;
+}
 
 function normalizeText(v) { return (v || "").trim(); }
 function normalizeStringArray(arr) { return [...new Set(arr.map(v => normalizeText(v)).filter(Boolean))]; }
+function parseCommaSeparatedInput(value) {
+  return normalizeStringArray(String(value ?? "").split(","));
+}
+function isServiceCustomEntry(service) {
+  if (service?.isCustomEntry) return true;
+
+  const category = normalizeText(service?.category);
+  const subCategory = normalizeText(service?.subCategory);
+  const baseServiceName = normalizeText(service?.baseServiceName);
+
+  if (!category) return false;
+  if (!SC.SERVICE_CATALOG.some(item => item.name === category)) return true;
+  if (!subCategory || !baseServiceName) return false;
+
+  return !SC.getBaseServiceSelectionOptions(category, subCategory)
+    .some(option => option.baseServiceName === baseServiceName);
+}
+function sortServiceMaps(maps) {
+  return [...maps].sort((left, right) => {
+    if (left.isActive !== right.isActive) {
+      return left.isActive ? -1 : 1;
+    }
+    if (left.sortOrder !== right.sortOrder) {
+      return left.sortOrder - right.sortOrder;
+    }
+    return `${left.category}-${left.baseServiceName}`.localeCompare(
+      `${right.category}-${right.baseServiceName}`,
+    );
+  });
+}
+function applyServiceMaps(nextMaps) {
+  serviceMaps = sortServiceMaps(Array.isArray(nextMaps) ? nextMaps : []);
+  SC.setRows(serviceMaps);
+}
+function buildAdminHeaders(extraHeaders = {}) {
+  const adminId = normalizeText(settingsAdminIdInput?.value);
+  const adminPassword = settingsAdminPasswordInput?.value ?? "";
+  return {
+    ...extraHeaders,
+    Authorization: `Basic ${btoa(`${adminId}:${adminPassword}`)}`,
+  };
+}
+function syncSelectedDealUI() {
+  const hasSelectedDeal = Boolean(selectedDeal);
+  document.body.classList.toggle("has-selected-deal", hasSelectedDeal);
+  navDealStatus.classList.toggle("is-selected", hasSelectedDeal);
+  navDealStatus.classList.toggle("is-empty", !hasSelectedDeal);
+  navDealSignal.classList.toggle("is-active", hasSelectedDeal);
+  navDealSignal.classList.toggle("is-inactive", !hasSelectedDeal);
+
+  if (!hasSelectedDeal) {
+    navDealTitle.textContent = "No deal selected";
+    navDealMeta.textContent = "Open this from a Freshsales deal page.";
+    return;
+  }
+
+  const hasResolvedName =
+    Boolean(selectedDeal.name) &&
+    Boolean(selectedDeal.id) &&
+    selectedDeal.name !== selectedDeal.id;
+  navDealTitle.textContent = selectedDeal.name || selectedDeal.id;
+  navDealMeta.textContent = hasResolvedName
+    ? `Deal ID ${selectedDeal.id}`
+    : selectedDeal.id
+      ? "Resolving deal details..."
+      : "Ready for service changes.";
+}
+function refreshServicesFromCatalog() {
+  services = services.map(service => syncRowDerivedFields(service));
+  renderServices();
+}
+function getNextServiceMapSortOrder() {
+  const highestSortOrder = serviceMaps.reduce(
+    (highest, map) => Math.max(highest, Number(map.sortOrder) || 0),
+    0,
+  );
+  return String(highestSortOrder + 1 || 1);
+}
+function resetSettingsCreateForm() {
+  settingsCreateForm.reset();
+  settingsCreateSortOrderInput.value = getNextServiceMapSortOrder();
+  settingsCreateSourceRowNumberInput.value = settingsCreateSortOrderInput.value;
+  settingsCreateActiveInput.checked = true;
+  settingsEditingMapId = null;
+}
+function syncSettingsCreateUI() {
+  settingsCreateForm.classList.toggle("hidden", !isSettingsCreateOpen);
+  settingsNewRowBtn.querySelector("span").textContent = isSettingsCreateOpen
+    ? "Hide new row form"
+    : "Add new row";
+  settingsNewRowBtn.disabled = isSettingsCreateSubmitting;
+  settingsCreateCancelBtn.disabled = isSettingsCreateSubmitting;
+  settingsCreateResetBtn.disabled = isSettingsCreateSubmitting;
+  settingsCreateSubmitBtn.disabled = isSettingsCreateSubmitting;
+  settingsCreateSubmitBtn.textContent = isSettingsCreateSubmitting
+    ? settingsEditingMapId
+      ? "Updating..."
+      : "Creating..."
+    : settingsEditingMapId
+      ? "Update row"
+      : "Create row";
+}
+function openSettingsCreateForm() {
+  isSettingsCreateOpen = true;
+  resetSettingsCreateForm();
+  syncSettingsCreateUI();
+}
+function openSettingsEditForm(map) {
+  settingsEditingMapId = map.id || null;
+  isSettingsCreateOpen = true;
+  settingsCreateSortOrderInput.value = map.sortOrder || "";
+  settingsCreateStatusInput.value = map.status || "";
+  settingsCreateServiceOrderIdInput.value = map.serviceOrderId || "";
+  settingsCreateCategoryInput.value = map.category || "";
+  settingsCreateSubCategoryInput.value = map.subCategory || "";
+  settingsCreateUniversalPlatformInput.value = map.universalPlatform || "";
+  settingsCreateBaseServiceNameInput.value = map.baseServiceName || "";
+  settingsCreateItemTypeInput.value = map.itemType || "";
+  settingsCreateFlavorEnhancementItemInput.value = map.flavorEnhancementItem || "";
+  settingsCreateFlavorsInput.value = (map.flavors || []).join(", ");
+  settingsCreateEnhancementsInput.value = (map.serviceSpecificEnhancements || []).join(", ");
+  settingsCreateAuiInput.value = (map.aui || []).join(", ");
+  settingsCreateGroceryYnInput.value = map.groceryYN || "";
+  settingsCreateGroceryNeedsInput.value = map.groceryNeeds || "";
+  settingsCreateKitchenPrepNeededYnInput.value = map.kitchenPrepNeededYN || "";
+  settingsCreateKitchenPrepItemsInput.value = map.kitchenPrepItems || "";
+  settingsCreateCarryThroughYnInput.value = map.carryThroughYN || "";
+  settingsCreateCarryThroughItemsInput.value = map.carryThroughItems || "";
+  settingsCreateOrderItemsFromCcInput.value = map.orderItemsFromCC || "";
+  settingsCreateCcItemsInput.value = map.ccItems || "";
+  settingsCreateMainMachineInput.value = (map.updatedMainMachine || []).join(", ");
+  settingsCreateMachine2Input.value = (map.updatedMachine2 || []).join(", ");
+  settingsCreateMachine3Input.value = (map.updatedMachine3 || []).join(", ");
+  settingsCreateStrategicAttributesInput.value = map.strategicAttributes || "";
+  settingsCreateExclusivityKeysInput.value = map.exclusivityKeys || "";
+  settingsCreateStaffInput.value = map.staff || "";
+  settingsCreatePreSupplyTierInput.value = map.preSupplyTier || "";
+  settingsCreateTwoDayPriceInput.value = map.twoDayPrice || "";
+  settingsCreateThreeDayPriceInput.value = map.threeDayPrice || "";
+  settingsCreateFourDayPriceInput.value = map.fourDayPrice || "";
+  settingsCreateNotesInput.value = map.notes || "";
+  settingsCreateSourceRowNumberInput.value = map.sourceRowNumber || map.sortOrder || "";
+  settingsCreateActiveInput.checked = map.isActive !== false;
+  setSettingsNote(`Editing "${map.baseServiceName}".`);
+  syncSettingsCreateUI();
+}
+function closeSettingsCreateForm() {
+  isSettingsCreateOpen = false;
+  settingsEditingMapId = null;
+  syncSettingsCreateUI();
+}
+function readSettingsCreatePayload() {
+  return {
+    sortOrder: normalizeText(settingsCreateSortOrderInput.value),
+    isActive: settingsCreateActiveInput.checked,
+    status: normalizeText(settingsCreateStatusInput.value),
+    serviceOrderId: normalizeText(settingsCreateServiceOrderIdInput.value),
+    category: normalizeText(settingsCreateCategoryInput.value),
+    subCategory: normalizeText(settingsCreateSubCategoryInput.value),
+    universalPlatform: normalizeText(settingsCreateUniversalPlatformInput.value),
+    baseServiceName: normalizeText(settingsCreateBaseServiceNameInput.value),
+    itemType: normalizeText(settingsCreateItemTypeInput.value),
+    flavorEnhancementItem: normalizeText(settingsCreateFlavorEnhancementItemInput.value),
+    flavors: settingsCreateFlavorsInput.value,
+    serviceSpecificEnhancements: settingsCreateEnhancementsInput.value,
+    aui: settingsCreateAuiInput.value,
+    groceryYN: normalizeText(settingsCreateGroceryYnInput.value),
+    groceryNeeds: normalizeText(settingsCreateGroceryNeedsInput.value),
+    kitchenPrepNeededYN: normalizeText(settingsCreateKitchenPrepNeededYnInput.value),
+    kitchenPrepItems: normalizeText(settingsCreateKitchenPrepItemsInput.value),
+    carryThroughYN: normalizeText(settingsCreateCarryThroughYnInput.value),
+    carryThroughItems: normalizeText(settingsCreateCarryThroughItemsInput.value),
+    orderItemsFromCC: normalizeText(settingsCreateOrderItemsFromCcInput.value),
+    ccItems: normalizeText(settingsCreateCcItemsInput.value),
+    updatedMainMachine: settingsCreateMainMachineInput.value,
+    updatedMachine2: settingsCreateMachine2Input.value,
+    updatedMachine3: settingsCreateMachine3Input.value,
+    strategicAttributes: normalizeText(settingsCreateStrategicAttributesInput.value),
+    exclusivityKeys: normalizeText(settingsCreateExclusivityKeysInput.value),
+    staff: normalizeText(settingsCreateStaffInput.value),
+    preSupplyTier: normalizeText(settingsCreatePreSupplyTierInput.value),
+    twoDayPrice: normalizeText(settingsCreateTwoDayPriceInput.value),
+    threeDayPrice: normalizeText(settingsCreateThreeDayPriceInput.value),
+    fourDayPrice: normalizeText(settingsCreateFourDayPriceInput.value),
+    notes: normalizeText(settingsCreateNotesInput.value),
+    sourceRowNumber: normalizeText(settingsCreateSourceRowNumberInput.value || settingsCreateSortOrderInput.value),
+  };
+}
 
 async function loadCatalogMappings() {
-  const data = await fetchJson("/api/service-maps");
-  SC.setRows(data.maps || []);
+  const data = await fetchJson("/api/service-maps?includeInactive=true");
+  applyServiceMaps(data.maps || []);
   isCatalogReady = true;
+  return serviceMaps;
 }
 
 function buildServiceFinalValue(s) {
@@ -54,8 +317,10 @@ function buildServiceFinalValue(s) {
   const sub = normalizeText(s.subCategory);
   const base = normalizeText(s.baseServiceName);
   const flavors = normalizeStringArray(s.flavors);
-  if (!cat || !sub || !base || flavors.length === 0) return "";
-  return `${cat}_${sub}_${base}|${flavors.join(",")}`;
+  const enhancements = normalizeStringArray(s.serviceSpecificEnhancements || []);
+  const selectedItems = flavors.length > 0 ? flavors : enhancements;
+  if (!cat || !sub || !base || selectedItems.length === 0) return "";
+  return `${cat}_${sub}_${base}|${selectedItems.join(",")}`;
 }
 
 function getFlavorEnhancementOptions(service) {
@@ -95,6 +360,19 @@ function resolveMultiValue(current, options) {
 }
 
 function syncRowDerivedFields(s) {
+  if (isServiceCustomEntry(s)) {
+    return {
+      ...s,
+      isCustomEntry: true,
+      flavors: normalizeStringArray(s.flavors || []),
+      serviceSpecificEnhancements: normalizeStringArray(s.serviceSpecificEnhancements || []),
+      aui: "",
+      updatedMainMachine: "",
+      updatedMachine2: "",
+      updatedMachine3: "",
+    };
+  }
+
   const enhOpts = SC.getEnhancementOptions(s.category, s.subCategory, s.universalPlatform, s.baseServiceName, s.flavors);
   const auiOpts = SC.getAuiOptions(s.category, s.subCategory, s.universalPlatform, s.baseServiceName, s.flavors);
   const mm1 = SC.getUpdatedMainMachineOptions(s.category, s.subCategory, s.universalPlatform, s.baseServiceName, s.flavors);
@@ -116,6 +394,7 @@ function createEmptyService(id, dealId) {
     flavors: [], serviceSpecificEnhancements: [],
     universalPlatform: "", aui: "", updatedMainMachine: "",
     updatedMachine2: "", updatedMachine3: "", price: 0,
+    isCustomEntry: false,
     finalValue: "", dirty: true, saveState: "idle",
     note: "Complete the fields, add a price, and save.",
   };
@@ -123,7 +402,9 @@ function createEmptyService(id, dealId) {
 
 function hydrateService(s, saveState = "idle", note = "") {
   return syncRowDerivedFields({
-    ...s, finalValue: buildServiceFinalValue(s),
+    ...s,
+    isCustomEntry: isServiceCustomEntry(s),
+    finalValue: buildServiceFinalValue(s),
     dirty: false, saveState, note,
   });
 }
@@ -139,6 +420,307 @@ function updateService(id, updater) {
   renderServices();
 }
 
+function createServiceMapPayload(map, isActiveOverride = map.isActive) {
+  return {
+    sortOrder: String(map.sortOrder),
+    isActive: isActiveOverride,
+    status: map.status,
+    serviceOrderId: map.serviceOrderId,
+    category: map.category,
+    subCategory: map.subCategory,
+    universalPlatform: map.universalPlatform,
+    baseServiceName: map.baseServiceName,
+    itemType: map.itemType,
+    flavorEnhancementItem: map.flavorEnhancementItem,
+    flavors: map.flavors,
+    serviceSpecificEnhancements: map.serviceSpecificEnhancements,
+    aui: map.aui,
+    groceryYN: map.groceryYN,
+    groceryNeeds: map.groceryNeeds,
+    kitchenPrepNeededYN: map.kitchenPrepNeededYN,
+    kitchenPrepItems: map.kitchenPrepItems,
+    carryThroughYN: map.carryThroughYN,
+    carryThroughItems: map.carryThroughItems,
+    orderItemsFromCC: map.orderItemsFromCC,
+    ccItems: map.ccItems,
+    updatedMainMachine: map.updatedMainMachine,
+    updatedMachine2: map.updatedMachine2,
+    updatedMachine3: map.updatedMachine3,
+    strategicAttributes: map.strategicAttributes,
+    exclusivityKeys: map.exclusivityKeys,
+    staff: map.staff,
+    preSupplyTier: map.preSupplyTier,
+    twoDayPrice: map.twoDayPrice,
+    threeDayPrice: map.threeDayPrice,
+    fourDayPrice: map.fourDayPrice,
+    notes: map.notes,
+    sourceRowNumber: map.sourceRowNumber || map.sortOrder,
+  };
+}
+
+function getFilteredServiceMaps() {
+  const query = normalizeText(settingsSearchInput.value).toLowerCase();
+  if (!query) return serviceMaps;
+
+  return serviceMaps.filter(map =>
+    [
+      map.category,
+      map.subCategory,
+      map.universalPlatform,
+      map.baseServiceName,
+      map.serviceOrderId,
+      ...(map.flavors || []),
+      ...(map.serviceSpecificEnhancements || []),
+      map.isActive ? "active" : "inactive",
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(query),
+  );
+}
+
+function renderSettingsList() {
+  const activeCount = serviceMaps.filter(map => map.isActive).length;
+  const inactiveCount = serviceMaps.length - activeCount;
+  settingsTotalCountEl.textContent = `${serviceMaps.length} rows`;
+  settingsActiveCountEl.textContent = `${activeCount} active`;
+  settingsInactiveCountEl.textContent = `${inactiveCount} inactive`;
+  settingsListEl.innerHTML = "";
+
+  if (isSettingsLoading) {
+    const loading = document.createElement("div");
+    loading.className = "settings-empty animate-shimmer";
+    loading.textContent = "Loading service availability...";
+    settingsListEl.appendChild(loading);
+    return;
+  }
+
+  const filteredMaps = getFilteredServiceMaps();
+  if (filteredMaps.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "settings-empty";
+    empty.textContent = serviceMaps.length === 0
+      ? "No service rows found yet."
+      : "No service rows match that search.";
+    settingsListEl.appendChild(empty);
+    return;
+  }
+
+  filteredMaps.forEach(map => {
+    const row = document.createElement("article");
+    row.className = `settings-item ${map.isActive ? "is-active" : "is-inactive"}`;
+
+    const copy = document.createElement("div");
+    copy.className = "settings-item-copy";
+
+    const topline = document.createElement("div");
+    topline.className = "settings-item-topline";
+
+    const rowPill = document.createElement("span");
+    rowPill.className = "settings-pill";
+    rowPill.textContent = `Row ${map.sortOrder}`;
+    topline.appendChild(rowPill);
+
+    const categoryPill = document.createElement("span");
+    categoryPill.className = "settings-pill";
+    categoryPill.textContent = map.category || "Uncategorized";
+    topline.appendChild(categoryPill);
+
+    const statusPill = document.createElement("span");
+    statusPill.className = `settings-pill settings-status-pill ${map.isActive ? "active" : "inactive"}`;
+    const statusSignal = document.createElement("span");
+    statusSignal.className = `signal-dot ${map.isActive ? "is-active" : "is-inactive"}`;
+    statusSignal.setAttribute("aria-hidden", "true");
+    statusPill.appendChild(statusSignal);
+    statusPill.append(map.isActive ? "Active" : "Inactive");
+    topline.appendChild(statusPill);
+
+    const title = document.createElement("strong");
+    title.className = "settings-item-title";
+    title.textContent = map.baseServiceName;
+
+    const meta = document.createElement("p");
+    meta.className = "settings-item-meta";
+    meta.textContent = [map.subCategory, map.universalPlatform]
+      .filter(Boolean)
+      .join(" - ") || "No extra service metadata";
+
+    copy.appendChild(topline);
+    copy.appendChild(title);
+    copy.appendChild(meta);
+
+    const toggleBtn = document.createElement("button");
+    toggleBtn.type = "button";
+    toggleBtn.className = `settings-toggle-btn ${map.isActive ? "is-active" : "is-inactive"}`;
+    toggleBtn.disabled = settingsBusyMapId === map.id;
+    toggleBtn.textContent =
+      settingsBusyMapId === map.id
+        ? "Saving..."
+        : map.isActive
+          ? "Deactivate"
+          : "Activate";
+    toggleBtn.addEventListener("click", () => { void handleToggleServiceMapActive(map); });
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "settings-toggle-btn";
+    editBtn.disabled = settingsBusyMapId === map.id;
+    editBtn.textContent = "Edit";
+    editBtn.addEventListener("click", () => openSettingsEditForm(map));
+
+    row.appendChild(copy);
+    row.appendChild(editBtn);
+    row.appendChild(toggleBtn);
+    settingsListEl.appendChild(row);
+  });
+}
+
+async function loadSettingsCatalog() {
+  isSettingsLoading = true;
+  renderSettingsList();
+
+  try {
+    const data = await fetchJson("/api/service-maps?includeInactive=true", {
+      headers: buildAdminHeaders(),
+    });
+    applyServiceMaps(data.maps || []);
+    isCatalogReady = true;
+    setSettingsNote(
+      serviceMaps.length > 0
+        ? `${serviceMaps.length} service row(s) loaded. Toggle any row to manage active availability.`
+        : "No service rows are available yet.",
+      serviceMaps.length > 0 ? "success" : "info",
+    );
+    resetSettingsCreateForm();
+  } catch (err) {
+    setSettingsNote(err.message || "Unable to load service settings.", "error");
+  } finally {
+    isSettingsLoading = false;
+    renderSettingsList();
+  }
+}
+
+function renderSettingsPanel() {
+  settingsAuthView.classList.toggle("hidden", isSettingsAuthenticated);
+  settingsManagerView.classList.toggle("hidden", !isSettingsAuthenticated);
+  if (isSettingsAuthenticated) {
+    syncSettingsCreateUI();
+    renderSettingsList();
+  }
+}
+
+function openSettingsPanel() {
+  isSettingsOpen = true;
+  settingsOverlay.classList.remove("hidden");
+  document.body.classList.add("settings-open");
+  renderSettingsPanel();
+  if (isSettingsAuthenticated) {
+    void loadSettingsCatalog();
+  }
+}
+
+function closeSettingsPanel() {
+  isSettingsOpen = false;
+  settingsOverlay.classList.add("hidden");
+  document.body.classList.remove("settings-open");
+}
+
+async function handleToggleServiceMapActive(map) {
+  if (!map?.id || settingsBusyMapId) return;
+
+  const nextActiveState = !map.isActive;
+  settingsBusyMapId = map.id;
+  renderSettingsList();
+  setSettingsNote(
+    `${nextActiveState ? "Activating" : "Deactivating"} "${map.baseServiceName}"...`,
+  );
+
+  try {
+    const data = await fetchJson(`/api/service-maps/${encodeURIComponent(map.id)}`, {
+      method: "PUT",
+      headers: buildAdminHeaders({
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify(createServiceMapPayload(map, nextActiveState)),
+    });
+
+    applyServiceMaps(serviceMaps.map(item => item.id === data.map.id ? data.map : item));
+    refreshServicesFromCatalog();
+    setSettingsNote(
+      nextActiveState
+        ? `"${map.baseServiceName}" is now active in the extension catalog.`
+        : `"${map.baseServiceName}" is now inactive and hidden from service selectors.`,
+      "success",
+    );
+    setPanelNote("Service settings updated. Active service options were refreshed.");
+  } catch (err) {
+    setSettingsNote(err.message || "Unable to update this service row.", "error");
+  } finally {
+    settingsBusyMapId = null;
+    renderSettingsList();
+  }
+}
+
+async function handleCreateServiceMap() {
+  if (isSettingsCreateSubmitting) return;
+
+  const payload = readSettingsCreatePayload();
+  if (
+    !payload.sortOrder ||
+    !payload.category ||
+    !payload.subCategory ||
+    !payload.universalPlatform ||
+    !payload.baseServiceName ||
+    (!normalizeText(payload.flavors) && !normalizeText(payload.serviceSpecificEnhancements))
+  ) {
+    setSettingsNote(
+      "Sort Order, Category, Sub Category, Universal Platform, Base Service Name, and at least one Flavor or Enhancement are required.",
+      "error",
+    );
+    return;
+  }
+
+  isSettingsCreateSubmitting = true;
+  syncSettingsCreateUI();
+  const editingMapId = settingsEditingMapId;
+  setSettingsNote(`${editingMapId ? "Updating" : "Creating"} "${payload.baseServiceName}"...`);
+
+  try {
+    const data = await fetchJson(
+      editingMapId
+        ? `/api/service-maps/${encodeURIComponent(editingMapId)}`
+        : "/api/service-maps",
+      {
+        method: editingMapId ? "PUT" : "POST",
+        headers: buildAdminHeaders({
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify(payload),
+      },
+    );
+
+    applyServiceMaps(
+      editingMapId
+        ? serviceMaps.map(item => item.id === data.map.id ? data.map : item)
+        : [...serviceMaps, data.map],
+    );
+    refreshServicesFromCatalog();
+    resetSettingsCreateForm();
+    closeSettingsCreateForm();
+    renderSettingsList();
+    setSettingsNote(
+      `"${data.map.baseServiceName}" was ${editingMapId ? "updated" : "added"} in the extension catalog.`,
+      "success",
+    );
+    setPanelNote("Service settings updated. Active service options were refreshed.");
+  } catch (err) {
+    setSettingsNote(err.message || "Unable to create this service row.", "error");
+  } finally {
+    isSettingsCreateSubmitting = false;
+    syncSettingsCreateUI();
+  }
+}
+
 // ── Deal selection ──
 function selectDeal(deal) {
   if (!isCatalogReady) {
@@ -146,25 +728,16 @@ function selectDeal(deal) {
     return;
   }
   selectedDeal = deal;
-  dealNameDisplay.textContent = deal.name;
-  activeDealBadge.classList.remove("hidden");
+  syncSelectedDealUI();
   addServiceBtn.disabled = false;
+  setPanelNote(`Deal selected: ${deal.name || deal.id}. Loading services...`);
   loadServicesForDeal(deal);
-}
-
-function clearDeal() {
-  selectedDeal = null;
-  services = [];
-  activeDealBadge.classList.add("hidden");
-  addServiceBtn.disabled = true;
-  setPanelNote("Pick a deal to get started.");
-  renderServices();
 }
 
 async function loadServicesForDeal(deal) {
   isLoadingServices = true;
   services = [];
-  setPanelNote(`Loading services for ${deal.name}...`);
+  setPanelNote(`Loading services for ${deal.name || deal.id}...`);
   renderServices();
 
   try {
@@ -173,16 +746,17 @@ async function loadServicesForDeal(deal) {
     // Auto-correct the deal ID and Name if the backend resolved it!
     if (data.deal && (data.deal.id !== deal.id || data.deal.name !== deal.name)) {
       selectedDeal = data.deal;
-      dealNameDisplay.textContent = `${data.deal.name} (${data.deal.id})`;
+      syncSelectedDealUI();
     } else if (data.deal) {
-      dealNameDisplay.textContent = `${data.deal.name} (${data.deal.id})`;
+      selectedDeal = data.deal;
+      syncSelectedDealUI();
     }
 
     services = data.services.map(s => hydrateService(s, "idle", "Loaded successfully."));
     setPanelNote(
       services.length > 0
-        ? `${services.length} service(s) loaded for ${deal.name}.`
-        : `No services yet for ${deal.name}. Add one to begin.`,
+        ? `${services.length} service(s) loaded for ${selectedDeal?.name ?? deal.name ?? deal.id}.`
+        : `No services yet for ${selectedDeal?.name ?? deal.name ?? deal.id}. Add one to begin.`,
     );
   } catch (err) {
     setPanelNote(err.message || "Unable to load services.");
@@ -193,44 +767,66 @@ async function loadServicesForDeal(deal) {
   }
 }
 
-// ── Search ──
-searchForm.addEventListener("submit", e => {
+openSettingsBtn.addEventListener("click", () => {
+  openSettingsPanel();
+});
+
+closeSettingsBtn.addEventListener("click", () => {
+  closeSettingsPanel();
+});
+
+settingsOverlay.addEventListener("click", e => {
+  if (e.target === settingsOverlay) {
+    closeSettingsPanel();
+  }
+});
+
+settingsAuthForm.addEventListener("submit", e => {
   e.preventDefault();
-  if (!isCatalogReady) return;
-  const q = searchInput.value.trim();
-  if (q.length > 0) {
-    selectDeal({ id: q, name: q });
-    searchInput.value = "";
-    searchDropdown.classList.add("hidden");
+
+  const adminId = normalizeText(settingsAdminIdInput.value);
+  const adminPassword = settingsAdminPasswordInput.value;
+
+  if (adminId !== ADMIN_ID || adminPassword !== ADMIN_PASSWORD) {
+    setSettingsAuthNote("Use the extension admin credentials to open service settings.", "error");
+    return;
   }
+
+  isSettingsAuthenticated = true;
+  setSettingsAuthNote("Admin access confirmed. Service settings are ready.", "success");
+  renderSettingsPanel();
+  void loadSettingsCatalog();
 });
 
-searchInput.addEventListener("paste", e => {
-  if (!isCatalogReady) return;
-  const pasted = e.clipboardData.getData("Text").trim();
-  // Only capture digits immediately following deals/ to avoid capturing /deals/view/ list IDs
-  const idMatch = pasted.match(/(?:deals\/)(\d+)/);
-
-  let finalId;
-  if (idMatch) {
-    finalId = idMatch[1];
-  } else {
-    // If it's an unrecognized URL, don't use it. Otherwise, use the pasted text (e.g. searching by name)
-    if (pasted.startsWith("http://") || pasted.startsWith("https://")) {
-      return;
-    }
-    finalId = pasted;
-  }
-
-  if (finalId && finalId.length > 0) {
-    searchInput.value = finalId;
-    selectDeal({ id: finalId, name: finalId });
-    setTimeout(() => { searchInput.value = ""; }, 100);
-  }
+settingsSearchInput.addEventListener("input", () => {
+  renderSettingsList();
 });
 
-document.addEventListener("click", e => {
-  if (!searchForm.contains(e.target)) searchDropdown.classList.add("hidden");
+settingsNewRowBtn.addEventListener("click", () => {
+  if (isSettingsCreateOpen) {
+    closeSettingsCreateForm();
+    return;
+  }
+  openSettingsCreateForm();
+});
+
+settingsCreateCancelBtn.addEventListener("click", () => {
+  closeSettingsCreateForm();
+});
+
+settingsCreateResetBtn.addEventListener("click", () => {
+  resetSettingsCreateForm();
+});
+
+settingsCreateForm.addEventListener("submit", e => {
+  e.preventDefault();
+  void handleCreateServiceMap();
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && isSettingsOpen) {
+    closeSettingsPanel();
+  }
 });
 
 // ── Add / Save / Delete ──
@@ -242,7 +838,7 @@ addServiceBtn.addEventListener("click", async () => {
   try {
     const data = await fetchJson("/api/deal-services/id", { method: "POST" });
     services.push(createEmptyService(data.id, selectedDeal.id));
-    setPanelNote(`New service added for ${selectedDeal.name}. Fill it out and save when ready.`);
+    setPanelNote(`New service added for ${selectedDeal.name || selectedDeal.id}. Fill it out and save when ready.`);
     renderServices();
   } catch (err) {
     setPanelNote(err.message || "Unable to create a service block.");
@@ -251,8 +847,6 @@ addServiceBtn.addEventListener("click", async () => {
     addServiceBtn.querySelector("span").textContent = "Add service";
   }
 });
-
-clearDealBtn.addEventListener("click", clearDeal);
 
 async function handleSaveService(serviceId) {
   const s = services.find(x => x.id === serviceId);
@@ -317,8 +911,26 @@ async function handleDeleteService(serviceId) {
 
 // ── Field change handlers ──
 function handleCategoryChange(id, value) {
+  if (value === CUSTOM_CATEGORY_VALUE) {
+    updateService(id, s => markDirty({
+      ...s,
+      isCustomEntry: true,
+      category: "",
+      subCategory: "",
+      universalPlatform: "",
+      baseServiceName: "",
+      flavors: [],
+      serviceSpecificEnhancements: [],
+      aui: "",
+      updatedMainMachine: "",
+      updatedMachine2: "",
+      updatedMachine3: "",
+    }));
+    return;
+  }
+
   updateService(id, s => markDirty({
-    ...s, category: value, subCategory: "", universalPlatform: "",
+    ...s, isCustomEntry: false, category: value, subCategory: "", universalPlatform: "",
     baseServiceName: "", flavors: [], serviceSpecificEnhancements: [],
     aui: "", updatedMainMachine: "", updatedMachine2: "", updatedMachine3: "",
   }));
@@ -337,13 +949,13 @@ function handleBaseServiceSelect(id, value) {
   updateService(id, s => {
     if (!parsed) {
       return markDirty({
-        ...s, category: "", subCategory: "", universalPlatform: "",
+        ...s, isCustomEntry: false, category: "", subCategory: "", universalPlatform: "",
         baseServiceName: "", flavors: [], serviceSpecificEnhancements: [],
         aui: "", updatedMainMachine: "", updatedMachine2: "", updatedMachine3: "",
       });
     }
     return markDirty(syncRowDerivedFields({
-      ...s, category: parsed.category, subCategory: parsed.subCategory,
+      ...s, isCustomEntry: false, category: parsed.category, subCategory: parsed.subCategory,
       universalPlatform: parsed.universalPlatform,
       baseServiceName: parsed.baseServiceName,
       flavors: [], serviceSpecificEnhancements: [],
@@ -376,6 +988,20 @@ function handleFlavorEnhancementChange(id, value) {
     ),
     aui: "", updatedMainMachine: "", updatedMachine2: "", updatedMachine3: "",
   })));
+}
+
+function handleCustomFlavorEnhancementFieldChange(id, rawValue) {
+  const nextValue = parseCommaSeparatedInput(rawValue);
+  updateService(id, s => markDirty({
+    ...s,
+    isCustomEntry: true,
+    flavors: nextValue,
+    serviceSpecificEnhancements: [],
+    aui: "",
+    updatedMainMachine: "",
+    updatedMachine2: "",
+    updatedMachine3: "",
+  }));
 }
 
 function handleFieldChange(id, field, value) {
@@ -416,8 +1042,8 @@ function renderServices() {
       emptyTitle.textContent = "No services yet";
       emptySubtitle.textContent = 'Click "Add service" to create your first service for this deal.';
     } else {
-      emptyTitle.textContent = "Select a deal to begin";
-      emptySubtitle.textContent = "Use the search bar above to find and select a deal.";
+      emptyTitle.textContent = "Open a deal to begin";
+      emptySubtitle.textContent = "Launch this from a Freshsales deal page to load that deal here.";
     }
     return;
   }
@@ -463,11 +1089,12 @@ function buildServiceCard(s, num) {
   $(".btn-delete", card).addEventListener("click", () => handleDeleteService(s.id));
 
   const grid = $(".form-grid", card);
-  buildFormFields(grid, s, num);
+  buildFormFields(grid, s);
   return card;
 }
 
-function buildFormFields(grid, s, num) {
+function buildFormFields(grid, s) {
+  const isCustomEntry = isServiceCustomEntry(s);
   const baseKey = s.baseServiceName
     ? SC.buildBaseServiceSelectionKey(s.category, s.subCategory, s.baseServiceName)
     : "";
@@ -475,34 +1102,104 @@ function buildFormFields(grid, s, num) {
     .map(o => ({ value: o.key, label: o.label }));
   const subCatOpts = SC.getSubCategoryOptions(s.category).map(o => o.name);
   const flavorEnhancementOptions = getFlavorEnhancementOptions(s);
+  const categoryOptions = [
+    ...SC.SERVICE_CATALOG.map(c => ({ value: c.name, label: c.name })),
+    { value: CUSTOM_CATEGORY_VALUE, label: "CUSTOM" },
+  ];
 
   // Category
-  grid.appendChild(createSelectField("Category", s.category,
-    SC.SERVICE_CATALOG.map(c => ({ value: c.name, label: c.name })),
+  grid.appendChild(createSelectField("Category", isCustomEntry ? CUSTOM_CATEGORY_VALUE : s.category,
+    categoryOptions,
     "Select a category", false, v => handleCategoryChange(s.id, v)));
 
+  if (isCustomEntry) {
+    grid.appendChild(createTextField("Custom Category", s.category,
+      "Enter a category", false, v => handleFieldChange(s.id, "category", v)));
+    grid.appendChild(createTextField("Sub Category", s.subCategory,
+      "Enter a sub category", false, v => handleFieldChange(s.id, "subCategory", v)));
+    grid.appendChild(createTextField("Universal Platform", s.universalPlatform,
+      "Enter a platform", false, v => handleFieldChange(s.id, "universalPlatform", v)));
+    grid.appendChild(createTextField("Base Service Name", s.baseServiceName,
+      "Enter a base service name", false, v => handleFieldChange(s.id, "baseServiceName", v)));
+    grid.appendChild(createTextareaField("Flavor / Enhancements", getSelectedFlavorEnhancementValues(s).join(", "),
+      "Vanilla, Strawberry, Matcha", false,
+      v => handleCustomFlavorEnhancementFieldChange(s.id, v)));
+  } else {
   // Sub Category
-  grid.appendChild(createSelectField("Sub Category", s.subCategory,
-    subCatOpts.map(v => ({ value: v, label: v })),
-    "Select a sub category", !s.category, v => handleSubCategoryChange(s.id, v)));
+    grid.appendChild(createSelectField("Sub Category", s.subCategory,
+      subCatOpts.map(v => ({ value: v, label: v })),
+      "Select a sub category", !s.category, v => handleSubCategoryChange(s.id, v)));
 
   // Base Service Name
-  grid.appendChild(createSelectField("Base Service Name", baseKey, baseOpts.map(o => ({ value: o.value, label: o.label })),
-    "Select a base service", !s.subCategory, v => handleBaseServiceSelect(s.id, v)));
+    grid.appendChild(createSelectField("Base Service Name", baseKey, baseOpts.map(o => ({ value: o.value, label: o.label })),
+      "Select a base service", !s.subCategory, v => handleBaseServiceSelect(s.id, v)));
 
   // Flavor / Enhancements
-  if (s.baseServiceName) {
-    grid.appendChild(createMultiSelectField("Flavor / Enhancements",
-      getSelectedFlavorEnhancementValues(s), flavorEnhancementOptions,
-      "Select one or more values", false, v => handleFlavorEnhancementChange(s.id, v)));
+    if (s.baseServiceName) {
+      grid.appendChild(createMultiSelectField("Flavor / Enhancements",
+        getSelectedFlavorEnhancementValues(s), flavorEnhancementOptions,
+        "Select one or more values", false, v => handleFlavorEnhancementChange(s.id, v)));
+    }
   }
 
-  // Price
-  grid.appendChild(createNumberField("Price (USD)", s.price, "0.00", false,
-    v => handleFieldChange(s.id, "price", v)));
+  appendReadOnlyCatalogDetails(grid, s);
 }
 
 // ── Reusable Field Builders ──
+function appendReadOnlyCatalogDetails(grid, s) {
+  const details = SC.getReadOnlyServiceDetails(
+    s.category,
+    s.subCategory,
+    s.universalPlatform,
+    s.baseServiceName,
+    s.flavors,
+    s.serviceSpecificEnhancements,
+  );
+
+  if (details.length === 0) return;
+
+  const panel = document.createElement("div");
+  panel.className = "readonly-details";
+
+  const header = document.createElement("div");
+  header.className = "readonly-details-header";
+
+  const title = document.createElement("span");
+  title.className = "field-label";
+  title.textContent = "Catalog Details";
+
+  const badge = document.createElement("span");
+  badge.className = "readonly-badge";
+  badge.textContent = "View only";
+
+  header.appendChild(title);
+  header.appendChild(badge);
+  panel.appendChild(header);
+
+  const list = document.createElement("div");
+  list.className = "readonly-details-grid";
+
+  details.forEach(detail => {
+    const item = document.createElement("div");
+    item.className = "readonly-detail-item";
+
+    const label = document.createElement("span");
+    label.className = "field-label";
+    label.textContent = detail.label;
+
+    const value = document.createElement("span");
+    value.className = "readonly-detail-value";
+    value.textContent = detail.value;
+
+    item.appendChild(label);
+    item.appendChild(value);
+    list.appendChild(item);
+  });
+
+  panel.appendChild(list);
+  grid.appendChild(panel);
+}
+
 function createSelectField(label, value, options, placeholder, disabled, onChange) {
   const group = document.createElement("div");
   group.className = "field-group";
@@ -607,6 +1304,58 @@ function createSelectField(label, value, options, placeholder, disabled, onChang
   inputWrap.appendChild(toggleBtn);
   wrap.appendChild(inputWrap);
   wrap.appendChild(dropdown);
+  group.appendChild(wrap);
+  return group;
+}
+
+function createTextField(label, value, placeholder, disabled, onChange) {
+  const group = document.createElement("div");
+  group.className = "field-group";
+
+  const lbl = document.createElement("span");
+  lbl.className = "field-label";
+  lbl.textContent = label;
+  group.appendChild(lbl);
+
+  const wrap = document.createElement("div");
+  wrap.className = "text-field";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = value ?? "";
+  input.placeholder = placeholder;
+  input.disabled = disabled;
+  input.addEventListener("change", () => {
+    onChange(input.value);
+  });
+
+  wrap.appendChild(input);
+  group.appendChild(wrap);
+  return group;
+}
+
+function createTextareaField(label, value, placeholder, disabled, onChange) {
+  const group = document.createElement("div");
+  group.className = "field-group";
+
+  const lbl = document.createElement("span");
+  lbl.className = "field-label";
+  lbl.textContent = label;
+  group.appendChild(lbl);
+
+  const wrap = document.createElement("div");
+  wrap.className = "text-field textarea-field";
+
+  const textarea = document.createElement("textarea");
+  textarea.rows = 3;
+  textarea.value = value ?? "";
+  textarea.placeholder = placeholder;
+  textarea.disabled = disabled;
+  textarea.addEventListener("change", () => {
+    onChange(textarea.value);
+  });
+
+  wrap.appendChild(textarea);
   group.appendChild(wrap);
   return group;
 }
@@ -755,20 +1504,21 @@ if (urlParams.get("sidebar") === "true") {
 const autoDealId = urlParams.get("dealId");
 
 async function initPopup() {
+  setSettingsAuthNote("Enter the extension admin credentials to continue.");
+  setSettingsNote("Loading current service availability...");
+  syncSelectedDealUI();
+  syncSettingsCreateUI();
   setPanelNote("Loading service mappings...");
-  searchInput.disabled = true;
   addServiceBtn.disabled = true;
   renderServices();
 
   try {
     await loadCatalogMappings();
-    searchInput.disabled = false;
-    setPanelNote("Pick a deal to get started.");
+    resetSettingsCreateForm();
+    setPanelNote("Open a Freshsales deal to get started.");
 
     if (autoDealId) {
-      searchInput.value = autoDealId;
       selectDeal({ id: autoDealId, name: autoDealId });
-      setTimeout(() => { searchInput.value = ""; }, 100);
       return;
     }
 

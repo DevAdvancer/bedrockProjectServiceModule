@@ -166,19 +166,26 @@ function buildFreshsalesProductName(service: DealServiceInput) {
 }
 
 function buildFreshsalesProductDescription(service: DealServiceInput) {
+  const catalog = service.catalogDetails;
   const details = [
     `Category: ${service.category}`,
     `Sub Category: ${service.subCategory}`,
-    `Universal Platform: ${service.universalPlatform}`,
+    `Universal Platform: ${catalog.universalPlatform || service.universalPlatform}`,
     `Base Service Name: ${service.baseServiceName}`,
     `Flavors: ${arrayToCsv(service.flavors) || "None"}`,
     `Service-Specific Enhancements: ${
       arrayToCsv(service.serviceSpecificEnhancements) || "None"
     }`,
-    `AUI: ${service.aui || "None"}`,
-    `Updated Main Machine: ${service.updatedMainMachine || "None"}`,
-    `Updated Machine 2: ${service.updatedMachine2 || "None"}`,
-    `Updated Machine 3: ${service.updatedMachine3 || "None"}`,
+    `AUI: ${catalog.aui || service.aui || "None"}`,
+    `Updated Main Machine: ${
+      catalog.updatedMainMachine || service.updatedMainMachine || "None"
+    }`,
+    `Updated Machine 2: ${
+      catalog.updatedMachine2 || service.updatedMachine2 || "None"
+    }`,
+    `Updated Machine 3: ${
+      catalog.updatedMachine3 || service.updatedMachine3 || "None"
+    }`,
     `Price (${FRESHSALES_CURRENCY_CODE}): ${service.price ?? 0}`,
   ];
 
@@ -187,6 +194,7 @@ function buildFreshsalesProductDescription(service: DealServiceInput) {
 
 function buildFreshsalesProductPayload(serviceId: string, service: DealServiceInput) {
   const finalValue = buildServiceFinalValue(service);
+  const catalog = service.catalogDetails;
 
   return {
     product: {
@@ -200,17 +208,45 @@ function buildFreshsalesProductPayload(serviceId: string, service: DealServiceIn
         [FRESHSALES_PRODUCT_CUSTOM_FIELDS.serviceCategory]: service.category,
         [FRESHSALES_PRODUCT_CUSTOM_FIELDS.serviceSubCategory]: service.subCategory,
         [FRESHSALES_PRODUCT_CUSTOM_FIELDS.universalPlatform]:
-          service.universalPlatform,
+          catalog.universalPlatform || service.universalPlatform,
         [FRESHSALES_PRODUCT_CUSTOM_FIELDS.baseServiceName]:
           service.baseServiceName,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.catalogServiceId]:
+          catalog.catalogServiceId,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.status]: catalog.status,
         [FRESHSALES_PRODUCT_CUSTOM_FIELDS.flavors]: arrayToCsv(service.flavors),
         [FRESHSALES_PRODUCT_CUSTOM_FIELDS.serviceSpecificEnhancements]:
           arrayToCsv(service.serviceSpecificEnhancements),
-        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.aui]: service.aui,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.aui]: catalog.aui || service.aui,
         [FRESHSALES_PRODUCT_CUSTOM_FIELDS.updatedMainMachine]:
-          service.updatedMainMachine,
-        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.updatedMachine2]: service.updatedMachine2,
-        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.updatedMachine3]: service.updatedMachine3,
+          catalog.updatedMainMachine || service.updatedMainMachine,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.updatedMachine2]:
+          catalog.updatedMachine2 || service.updatedMachine2,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.updatedMachine3]:
+          catalog.updatedMachine3 || service.updatedMachine3,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.groceryYN]: catalog.groceryYN,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.groceryNeeds]: catalog.groceryNeeds,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.kitchenPrepNeededYN]:
+          catalog.kitchenPrepNeededYN,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.kitchenPrepItems]:
+          catalog.kitchenPrepItems,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.carryThroughYN]:
+          catalog.carryThroughYN,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.carryThroughItems]:
+          catalog.carryThroughItems,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.orderItemsFromCC]:
+          catalog.orderItemsFromCC,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.ccItems]: catalog.ccItems,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.strategicAttributes]:
+          catalog.strategicAttributes,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.exclusivityKeys]:
+          catalog.exclusivityKeys,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.staff]: catalog.staff,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.preSupplyTier]: catalog.preSupplyTier,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.twoDayPrice]: catalog.twoDayPrice,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.threeDayPrice]: catalog.threeDayPrice,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.fourDayPrice]: catalog.fourDayPrice,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.notes]: catalog.notes,
         [FRESHSALES_PRODUCT_CUSTOM_FIELDS.finalValue]: finalValue,
       },
     },
@@ -412,6 +448,8 @@ function buildServiceOrderPayload(
   service: DealServiceInput,
   dealName: string,
 ) {
+  const catalog = service.catalogDetails;
+
   return {
     [FRESHSALES_SERVICE_ORDER_ENTITY_NAME]: {
       name: service.baseServiceName,
@@ -419,22 +457,50 @@ function buildServiceOrderPayload(
         [FRESHSALES_SERVICE_ORDER_FIELDS.serviceOrderId]: serviceId,
         [FRESHSALES_SERVICE_ORDER_FIELDS.dealId]: service.dealId,
         [FRESHSALES_SERVICE_ORDER_FIELDS.dealName]: dealName,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.catalogServiceId]:
+          catalog.catalogServiceId,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.status]: catalog.status,
         [FRESHSALES_SERVICE_ORDER_FIELDS.serviceCategory]: service.category,
         [FRESHSALES_SERVICE_ORDER_FIELDS.serviceSubCategory]: service.subCategory,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.baseServiceName]:
+          service.baseServiceName,
         [FRESHSALES_SERVICE_ORDER_FIELDS.flavorEnhancements]:
           buildFlavorEnhancementsValue(
             service.flavors,
             service.serviceSpecificEnhancements,
           ),
         [FRESHSALES_SERVICE_ORDER_FIELDS.universalPlatform]:
-          service.universalPlatform,
-        [FRESHSALES_SERVICE_ORDER_FIELDS.aui]: service.aui,
+          catalog.universalPlatform || service.universalPlatform,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.aui]: catalog.aui || service.aui,
         [FRESHSALES_SERVICE_ORDER_FIELDS.updatedMainMachine]:
-          service.updatedMainMachine,
+          catalog.updatedMainMachine || service.updatedMainMachine,
         [FRESHSALES_SERVICE_ORDER_FIELDS.updatedMachine2]:
-          service.updatedMachine2,
+          catalog.updatedMachine2 || service.updatedMachine2,
         [FRESHSALES_SERVICE_ORDER_FIELDS.updatedMachine3]:
-          service.updatedMachine3,
+          catalog.updatedMachine3 || service.updatedMachine3,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.groceryYN]: catalog.groceryYN,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.groceryNeeds]: catalog.groceryNeeds,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.kitchenPrepNeededYN]:
+          catalog.kitchenPrepNeededYN,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.kitchenPrepItems]:
+          catalog.kitchenPrepItems,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.carryThroughYN]:
+          catalog.carryThroughYN,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.carryThroughItems]:
+          catalog.carryThroughItems,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.orderItemsFromCC]:
+          catalog.orderItemsFromCC,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.ccItems]: catalog.ccItems,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.strategicAttributes]:
+          catalog.strategicAttributes,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.exclusivityKeys]:
+          catalog.exclusivityKeys,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.staff]: catalog.staff,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.preSupplyTier]: catalog.preSupplyTier,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.twoDayPrice]: catalog.twoDayPrice,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.threeDayPrice]: catalog.threeDayPrice,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.fourDayPrice]: catalog.fourDayPrice,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.notes]: catalog.notes,
         [FRESHSALES_SERVICE_ORDER_FIELDS.price]: service.price ?? 0,
         [FRESHSALES_SERVICE_ORDER_FIELDS.finalValue]:
           buildServiceFinalValue(service),

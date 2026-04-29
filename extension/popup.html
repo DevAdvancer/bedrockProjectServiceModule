@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=480">
+  <meta name="viewport" content="width=560">
   <title>CrepesALatte — Service Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,26 +20,22 @@
         <span class="brand-name">CrepesALatte</span>
       </div>
 
-      <form id="search-form" class="search-form">
-        <svg class="search-icon" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
-          <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
-        </svg>
-        <input id="search-input" type="search" placeholder="Paste deal ID or name…" autocomplete="off">
-        <div id="search-dropdown" class="search-dropdown hidden"></div>
-      </form>
+      <div id="nav-deal-status" class="nav-deal-status is-empty" aria-live="polite">
+        <span id="nav-deal-signal" class="signal-dot is-inactive" aria-hidden="true"></span>
+        <div class="nav-deal-copy">
+          <span class="nav-deal-label">Deal status</span>
+          <strong id="nav-deal-title" class="nav-deal-title">No deal selected</strong>
+          <span id="nav-deal-meta" class="nav-deal-meta">Open this from a Freshsales deal page.</span>
+        </div>
+      </div>
 
       <div class="nav-actions">
-        <div id="active-deal-badge" class="active-deal hidden">
-          <div class="deal-info">
-            <span class="deal-label">Active Deal</span>
-            <span id="deal-name-display" class="deal-name"></span>
-          </div>
-          <button id="clear-deal-btn" class="icon-btn" aria-label="Clear deal">
-            <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14">
-              <path d="M5.28 4.22a.75.75 0 00-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 101.06 1.06L8 9.06l2.72 2.72a.75.75 0 101.06-1.06L9.06 8l2.72-2.72a.75.75 0 00-1.06-1.06L8 6.94 5.28 4.22z"/>
-            </svg>
-          </button>
-        </div>
+        <button id="open-settings-btn" class="icon-btn settings-trigger" aria-label="Open service settings">
+          <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
+            <path d="M8.178 2.824a.75.75 0 011.644 0l.198.436a.75.75 0 00.902.405l.47-.124a.75.75 0 01.95.95l-.124.47a.75.75 0 00.405.902l.436.198a.75.75 0 010 1.644l-.436.198a.75.75 0 00-.405.902l.124.47a.75.75 0 01-.95.95l-.47-.124a.75.75 0 00-.902.405l-.198.436a.75.75 0 01-1.644 0l-.198-.436a.75.75 0 00-.902-.405l-.47.124a.75.75 0 01-.95-.95l.124-.47a.75.75 0 00-.405-.902l-.436-.198a.75.75 0 010-1.644l.436-.198a.75.75 0 00.405-.902l-.124-.47a.75.75 0 01.95-.95l.47.124a.75.75 0 00.902-.405l.198-.436z" stroke="currentColor" stroke-width="1.25"/>
+            <path d="M10 8a2 2 0 110 4 2 2 0 010-4z" stroke="currentColor" stroke-width="1.25"/>
+          </svg>
+        </button>
         <button id="add-service-btn" class="btn-primary btn-shine" disabled>
           <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14">
             <path d="M8.75 3.75a.75.75 0 00-1.5 0v3.5h-3.5a.75.75 0 000 1.5h3.5v3.5a.75.75 0 001.5 0v-3.5h3.5a.75.75 0 000-1.5h-3.5v-3.5z"/>
@@ -59,7 +55,7 @@
   <main class="main-content">
     <div class="page-header animate-fade-in">
       <h1>Service Configuration</h1>
-      <p id="panel-note" class="panel-note">Pick a deal to get started.</p>
+      <p id="panel-note" class="panel-note">Open a Freshsales deal to get started.</p>
     </div>
 
     <div id="services-container">
@@ -69,8 +65,8 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
         </div>
-        <h3 id="empty-title">Select a deal to begin</h3>
-        <p id="empty-subtitle">Use the search bar above to find and select a deal.</p>
+        <h3 id="empty-title">Open a deal to begin</h3>
+        <p id="empty-subtitle">Launch this from a Freshsales deal page to load that deal here.</p>
       </div>
     </div>
 
@@ -114,6 +110,225 @@
   <template id="loading-template">
     <div class="loading-state animate-shimmer">Loading services…</div>
   </template>
+
+  <div id="settings-overlay" class="settings-overlay hidden">
+    <section class="settings-sheet" aria-labelledby="settings-title" aria-modal="true" role="dialog">
+      <div class="settings-sheet-header">
+        <div>
+          <span class="settings-eyebrow">Settings</span>
+          <h2 id="settings-title">Service availability</h2>
+          <p class="settings-subtitle">Manage which service rows stay active in the extension catalog.</p>
+        </div>
+        <button id="close-settings-btn" class="icon-btn settings-close-btn" aria-label="Close service settings">
+          <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16">
+            <path d="M5.28 4.22a.75.75 0 00-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 101.06 1.06L8 9.06l2.72 2.72a.75.75 0 101.06-1.06L9.06 8l2.72-2.72a.75.75 0 00-1.06-1.06L8 6.94 5.28 4.22z"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="settings-sheet-body">
+        <div id="settings-auth-view" class="settings-auth-view">
+          <div class="settings-auth-copy">
+            <h3>Unlock service settings</h3>
+            <p>Use the extension admin credentials to manage active and inactive services.</p>
+          </div>
+          <form id="settings-auth-form" class="settings-auth-form">
+            <label class="settings-field">
+              <span>Admin ID</span>
+              <input id="settings-admin-id" type="text" autocomplete="off" placeholder="Enter admin ID">
+            </label>
+            <label class="settings-field">
+              <span>Password</span>
+              <input id="settings-admin-password" type="password" autocomplete="off" placeholder="Enter password">
+            </label>
+            <p id="settings-auth-note" class="settings-auth-note">Enter the extension admin credentials to continue.</p>
+            <button type="submit" class="btn-primary settings-submit-btn">Open settings</button>
+          </form>
+        </div>
+
+        <div id="settings-manager-view" class="settings-manager-view hidden">
+          <div class="settings-summary">
+            <span id="settings-total-count" class="settings-pill">0 rows</span>
+            <span id="settings-active-count" class="settings-pill active">0 active</span>
+            <span id="settings-inactive-count" class="settings-pill inactive">0 inactive</span>
+          </div>
+
+          <div class="settings-manager-toolbar">
+            <button id="settings-new-row-btn" type="button" class="btn-primary settings-new-row-btn">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="14" height="14">
+                <path d="M8.75 3.75a.75.75 0 00-1.5 0v3.5h-3.5a.75.75 0 000 1.5h3.5v3.5a.75.75 0 001.5 0v-3.5h3.5a.75.75 0 000-1.5h-3.5v-3.5z"/>
+              </svg>
+              <span>Add new row</span>
+            </button>
+
+            <label class="settings-search-wrap">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
+              </svg>
+              <input id="settings-search-input" type="search" placeholder="Search services, category, platform, status..." autocomplete="off">
+            </label>
+          </div>
+
+          <form id="settings-create-form" class="settings-create-form hidden">
+            <div class="settings-create-header">
+              <div class="settings-create-copy">
+                <strong>Add a new service row</strong>
+                <p>Create a catalog row right here. Multi-value fields accept comma-separated values.</p>
+              </div>
+              <button id="settings-create-cancel-btn" type="button" class="btn-outline settings-create-cancel-btn">Cancel</button>
+            </div>
+
+            <div class="settings-create-grid">
+              <label class="settings-field">
+                <span>Sort Order</span>
+                <input id="settings-create-sort-order" type="number" min="1" placeholder="1">
+              </label>
+              <label class="settings-field">
+                <span>Services Status</span>
+                <input id="settings-create-status" type="text" autocomplete="off" placeholder="No Change">
+              </label>
+              <label class="settings-field">
+                <span>Service Order ID</span>
+                <input id="settings-create-service-order-id" type="text" autocomplete="off" placeholder="Optional internal ID">
+              </label>
+              <label class="settings-field">
+                <span>Category</span>
+                <input id="settings-create-category" type="text" autocomplete="off" placeholder="CRM">
+              </label>
+              <label class="settings-field">
+                <span>Sub Category</span>
+                <input id="settings-create-sub-category" type="text" autocomplete="off" placeholder="Beverage">
+              </label>
+              <label class="settings-field">
+                <span>Universal Platform</span>
+                <input id="settings-create-universal-platform" type="text" autocomplete="off" placeholder="ASSET PANDA">
+              </label>
+              <label class="settings-field">
+                <span>Base Service Name</span>
+                <input id="settings-create-base-service-name" type="text" autocomplete="off" placeholder="ALC: Cold Brew">
+              </label>
+              <label class="settings-field">
+                <span>Type</span>
+                <input id="settings-create-item-type" type="text" autocomplete="off" placeholder="Flavor, Enh., Modifier">
+              </label>
+              <label class="settings-field">
+                <span>Flavor / Enhancement Item</span>
+                <input id="settings-create-flavor-enhancement-item" type="text" autocomplete="off" placeholder="Granola Bites">
+              </label>
+              <label class="settings-field">
+                <span>Flavors</span>
+                <textarea id="settings-create-flavors" rows="3" placeholder="Cold Brew, Nitro"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>Enhancements</span>
+                <textarea id="settings-create-enhancements" rows="3" placeholder="CRM, Training"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>AUI</span>
+                <textarea id="settings-create-aui" rows="3" placeholder="ASSET PANDA, None"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>Grocery Y/N</span>
+                <input id="settings-create-grocery-yn" type="text" autocomplete="off" placeholder="Y or N">
+              </label>
+              <label class="settings-field">
+                <span>Grocery Needs</span>
+                <textarea id="settings-create-grocery-needs" rows="3" placeholder="Ingredient list"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>Kitchen Prep Needed Y/N</span>
+                <input id="settings-create-kitchen-prep-needed-yn" type="text" autocomplete="off" placeholder="Y or N">
+              </label>
+              <label class="settings-field">
+                <span>Kitchen Prep Items</span>
+                <textarea id="settings-create-kitchen-prep-items" rows="3" placeholder="Prep items"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>Carry Through Y/N</span>
+                <input id="settings-create-carry-through-yn" type="text" autocomplete="off" placeholder="Y or N">
+              </label>
+              <label class="settings-field">
+                <span>Carry Through Items</span>
+                <textarea id="settings-create-carry-through-items" rows="3" placeholder="Carry through items"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>Order Items from CC?</span>
+                <input id="settings-create-order-items-from-cc" type="text" autocomplete="off" placeholder="Y or N">
+              </label>
+              <label class="settings-field">
+                <span>CC Items</span>
+                <textarea id="settings-create-cc-items" rows="3" placeholder="CC items"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>Updated Main Machine</span>
+                <textarea id="settings-create-main-machine" rows="3" placeholder="Machine A, Machine B"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>Updated Machine 2</span>
+                <textarea id="settings-create-machine-2" rows="3" placeholder="Optional comma-separated values"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>Updated Machine 3</span>
+                <textarea id="settings-create-machine-3" rows="3" placeholder="Optional comma-separated values"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>Strategic Attributes</span>
+                <textarea id="settings-create-strategic-attributes" rows="3" placeholder="Wellness, Fuel and Energy"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>Exclusivity Keys</span>
+                <input id="settings-create-exclusivity-keys" type="text" autocomplete="off" placeholder="None">
+              </label>
+              <label class="settings-field">
+                <span>Staff</span>
+                <input id="settings-create-staff" type="text" autocomplete="off" placeholder="1S">
+              </label>
+              <label class="settings-field">
+                <span>Pre-Supply Tier</span>
+                <input id="settings-create-pre-supply-tier" type="text" autocomplete="off" placeholder="n/a">
+              </label>
+              <label class="settings-field">
+                <span>2-Day ($)</span>
+                <input id="settings-create-two-day-price" type="text" autocomplete="off" placeholder="n/a">
+              </label>
+              <label class="settings-field">
+                <span>3-Day ($)</span>
+                <input id="settings-create-three-day-price" type="text" autocomplete="off" placeholder="n/a">
+              </label>
+              <label class="settings-field">
+                <span>4-Day ($)</span>
+                <input id="settings-create-four-day-price" type="text" autocomplete="off" placeholder="n/a">
+              </label>
+              <label class="settings-field">
+                <span>Notes</span>
+                <textarea id="settings-create-notes" rows="3" placeholder="Optional notes"></textarea>
+              </label>
+              <label class="settings-field">
+                <span>Source Row Number</span>
+                <input id="settings-create-source-row-number" type="number" min="1" placeholder="2">
+              </label>
+            </div>
+
+            <label class="settings-checkbox">
+              <input id="settings-create-active" type="checkbox" checked>
+              <div>
+                <span>Active row</span>
+                <p>Active rows appear in the service selectors immediately. Inactive rows stay admin-only.</p>
+              </div>
+            </label>
+
+            <div class="settings-create-actions">
+              <button id="settings-create-reset-btn" type="button" class="btn-outline">Clear</button>
+              <button id="settings-create-submit-btn" type="submit" class="btn-primary settings-create-submit-btn">Create row</button>
+            </div>
+          </form>
+
+          <div id="settings-note" class="settings-note">Loading current service availability...</div>
+          <div id="settings-list" class="settings-list"></div>
+        </div>
+      </div>
+    </section>
+  </div>
 
   <script src="service-catalog.js"></script>
   <script src="popup.js"></script>

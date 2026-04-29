@@ -30,19 +30,41 @@ function normalizeRow(row, index) {
     id: normalizeText(row?.id),
     sortOrder: Number.isFinite(row?.sortOrder) ? row.sortOrder : index + 1,
     isActive: row?.isActive !== false,
+    status: normalizeText(row?.status),
     serviceOrderId: normalizeText(row?.serviceOrderId),
     category: normalizeText(row?.category),
     subCategory: normalizeText(row?.subCategory),
     universalPlatform: normalizeText(row?.universalPlatform),
     baseServiceName: normalizeText(row?.baseServiceName),
+    itemType: normalizeText(row?.itemType),
+    flavorEnhancementItem: normalizeText(row?.flavorEnhancementItem),
     flavors: parseCatalogValue(row?.flavors),
     serviceSpecificEnhancements: parseCatalogValue(
       row?.serviceSpecificEnhancements,
     ),
     aui: parseCatalogValue(row?.aui),
+    groceryYN: normalizeText(row?.groceryYN),
+    groceryNeeds: normalizeText(row?.groceryNeeds),
+    kitchenPrepNeededYN: normalizeText(row?.kitchenPrepNeededYN),
+    kitchenPrepItems: normalizeText(row?.kitchenPrepItems),
+    carryThroughYN: normalizeText(row?.carryThroughYN),
+    carryThroughItems: normalizeText(row?.carryThroughItems),
+    orderItemsFromCC: normalizeText(row?.orderItemsFromCC),
+    ccItems: normalizeText(row?.ccItems),
     updatedMainMachine: parseCatalogValue(row?.updatedMainMachine),
     updatedMachine2: parseCatalogValue(row?.updatedMachine2),
     updatedMachine3: parseCatalogValue(row?.updatedMachine3),
+    strategicAttributes: normalizeText(row?.strategicAttributes),
+    exclusivityKeys: normalizeText(row?.exclusivityKeys),
+    staff: normalizeText(row?.staff),
+    preSupplyTier: normalizeText(row?.preSupplyTier),
+    twoDayPrice: normalizeText(row?.twoDayPrice),
+    threeDayPrice: normalizeText(row?.threeDayPrice),
+    fourDayPrice: normalizeText(row?.fourDayPrice),
+    notes: normalizeText(row?.notes),
+    sourceRowNumber: Number.isFinite(row?.sourceRowNumber)
+      ? row.sourceRowNumber
+      : index + 1,
   };
 }
 
@@ -161,6 +183,7 @@ function getMatchingRows(category, subCategory, universalPlatform, baseServiceNa
   }
 
   return pathRows.filter(row =>
+    row.flavors.length === 0 ||
     selectedFlavors.some(flavor => row.flavors.includes(flavor)),
   );
 }
@@ -246,6 +269,57 @@ function getUpdatedMachine3Options(category, subCategory, universalPlatform, bas
   );
 }
 
+function getReadOnlyServiceDetails(category, subCategory, universalPlatform, baseServiceName, selectedFlavors = [], selectedEnhancements = []) {
+  if (!baseServiceName) return [];
+
+  const selectedItems = new Set(normalizeStringArray([...selectedFlavors, ...selectedEnhancements]));
+  const pathRows = getRowsForPath(category, subCategory, universalPlatform, baseServiceName);
+  const detailRows = selectedItems.size > 0
+    ? pathRows.filter(row =>
+        !row.flavorEnhancementItem ||
+        selectedItems.has(row.flavorEnhancementItem) ||
+        row.flavors.some(item => selectedItems.has(item)) ||
+        row.serviceSpecificEnhancements.some(item => selectedItems.has(item)),
+      )
+    : pathRows;
+
+  function uniqueJoined(selector) {
+    return uniqueStrings(detailRows.flatMap(row => {
+      const value = selector(row);
+      return Array.isArray(value) ? value : [value];
+    })).join(", ");
+  }
+
+  return [
+    { label: "Status", value: uniqueJoined(row => row.status) },
+    { label: "Service ID", value: uniqueJoined(row => row.serviceOrderId) },
+    { label: "Universal Platform", value: uniqueJoined(row => row.universalPlatform) },
+    { label: "AUI", value: uniqueJoined(row => row.aui) },
+    { label: "Main Machine", value: uniqueJoined(row => row.updatedMainMachine) },
+    { label: "Machine 2", value: uniqueJoined(row => row.updatedMachine2) },
+    { label: "Machine 3", value: uniqueJoined(row => row.updatedMachine3) },
+    { label: "Grocery", value: uniqueJoined(row => row.groceryYN) },
+    { label: "Grocery Needs", value: uniqueJoined(row => row.groceryNeeds) },
+    { label: "Kitchen Prep", value: uniqueJoined(row => row.kitchenPrepNeededYN) },
+    { label: "Kitchen Prep Items", value: uniqueJoined(row => row.kitchenPrepItems) },
+    { label: "Carry Through", value: uniqueJoined(row => row.carryThroughYN) },
+    { label: "Carry Through Items", value: uniqueJoined(row => row.carryThroughItems) },
+    { label: "Order from CC", value: uniqueJoined(row => row.orderItemsFromCC) },
+    { label: "CC Items", value: uniqueJoined(row => row.ccItems) },
+    { label: "Strategic Attributes", value: uniqueJoined(row => row.strategicAttributes) },
+    { label: "Exclusivity Keys", value: uniqueJoined(row => row.exclusivityKeys) },
+    { label: "Staff", value: uniqueJoined(row => row.staff) },
+    { label: "Pre-Supply Tier", value: uniqueJoined(row => row.preSupplyTier) },
+    { label: "2-Day ($)", value: uniqueJoined(row => row.twoDayPrice) },
+    { label: "3-Day ($)", value: uniqueJoined(row => row.threeDayPrice) },
+    { label: "4-Day ($)", value: uniqueJoined(row => row.fourDayPrice) },
+    { label: "Notes", value: uniqueJoined(row => row.notes) },
+  ].map(detail => ({
+    ...detail,
+    value: detail.value || "None",
+  }));
+}
+
 window.ServiceCatalog = {
   setRows,
   getRows,
@@ -263,4 +337,5 @@ window.ServiceCatalog = {
   getUpdatedMainMachineOptions,
   getUpdatedMachine2Options,
   getUpdatedMachine3Options,
+  getReadOnlyServiceDetails,
 };

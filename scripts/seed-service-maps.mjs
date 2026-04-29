@@ -77,7 +77,7 @@ if (!fs.existsSync(dataPath)) {
 }
 
 const rawRows = JSON.parse(fs.readFileSync(dataPath, "utf8"));
-const collectionName = "service_maps";
+const collectionName = "latestdata";
 
 const rows = rawRows
   .map((row, index) => ({
@@ -86,19 +86,42 @@ const rows = rawRows
         ? row.rowNumber
         : index + 1,
     isActive: row?.isActive !== false,
+    status: normalizeText(row?.status),
     serviceOrderId: normalizeText(row?.serviceOrderId),
     category: normalizeText(row?.category),
     subCategory: normalizeText(row?.subCategory),
     universalPlatform: normalizeText(row?.universalPlatform),
     baseServiceName: normalizeText(row?.baseServiceName),
+    itemType: normalizeText(row?.itemType),
+    flavorEnhancementItem: normalizeText(row?.flavorEnhancementItem),
     flavors: normalizeList(row?.flavors),
     serviceSpecificEnhancements: normalizeList(
       row?.serviceSpecificEnhancements,
     ),
     aui: normalizeList(row?.aui),
+    groceryYN: normalizeText(row?.groceryYN),
+    groceryNeeds: normalizeText(row?.groceryNeeds),
+    kitchenPrepNeededYN: normalizeText(row?.kitchenPrepNeededYN),
+    kitchenPrepItems: normalizeText(row?.kitchenPrepItems),
+    carryThroughYN: normalizeText(row?.carryThroughYN),
+    carryThroughItems: normalizeText(row?.carryThroughItems),
+    orderItemsFromCC: normalizeText(row?.orderItemsFromCC),
+    ccItems: normalizeText(row?.ccItems),
     updatedMainMachine: normalizeList(row?.updatedMainMachine),
     updatedMachine2: normalizeList(row?.updatedMachine2),
     updatedMachine3: normalizeList(row?.updatedMachine3),
+    strategicAttributes: normalizeText(row?.strategicAttributes),
+    exclusivityKeys: normalizeText(row?.exclusivityKeys),
+    staff: normalizeText(row?.staff),
+    preSupplyTier: normalizeText(row?.preSupplyTier),
+    twoDayPrice: normalizeText(row?.twoDayPrice),
+    threeDayPrice: normalizeText(row?.threeDayPrice),
+    fourDayPrice: normalizeText(row?.fourDayPrice),
+    notes: normalizeText(row?.notes),
+    sourceRowNumber:
+      Number.isFinite(row?.sourceRowNumber) && row.sourceRowNumber > 0
+        ? row.sourceRowNumber
+        : index + 2,
   }))
   .filter(
     (row) =>
@@ -117,62 +140,56 @@ async function run() {
   const collection = mongoose.connection.collection(collectionName);
   const now = new Date();
 
-  await collection.updateMany(
-    {
-      isActive: {
-        $exists: false,
-      },
-    },
-    {
-      $set: {
-        isActive: true,
-      },
-    },
-  );
+  await collection.deleteMany({});
 
-  const operations = rows.map((row) => ({
-    updateOne: {
-      filter: {
-        category: row.category,
-        subCategory: row.subCategory,
-        universalPlatform: row.universalPlatform,
-        baseServiceName: row.baseServiceName,
-      },
-      update: {
-        $set: {
+  const documents = rows.map((row) => ({
           sortOrder: row.sortOrder,
+          isActive: row.isActive,
+          status: row.status,
           serviceOrderId: row.serviceOrderId,
           category: row.category,
           subCategory: row.subCategory,
           universalPlatform: row.universalPlatform,
           baseServiceName: row.baseServiceName,
+          itemType: row.itemType,
+          flavorEnhancementItem: row.flavorEnhancementItem,
           flavors: row.flavors,
           serviceSpecificEnhancements: row.serviceSpecificEnhancements,
           aui: row.aui,
+          groceryYN: row.groceryYN,
+          groceryNeeds: row.groceryNeeds,
+          kitchenPrepNeededYN: row.kitchenPrepNeededYN,
+          kitchenPrepItems: row.kitchenPrepItems,
+          carryThroughYN: row.carryThroughYN,
+          carryThroughItems: row.carryThroughItems,
+          orderItemsFromCC: row.orderItemsFromCC,
+          ccItems: row.ccItems,
           updatedMainMachine: row.updatedMainMachine,
           updatedMachine2: row.updatedMachine2,
           updatedMachine3: row.updatedMachine3,
-          updated_at: now,
-        },
-        $setOnInsert: {
+          strategicAttributes: row.strategicAttributes,
+          exclusivityKeys: row.exclusivityKeys,
+          staff: row.staff,
+          preSupplyTier: row.preSupplyTier,
+          twoDayPrice: row.twoDayPrice,
+          threeDayPrice: row.threeDayPrice,
+          fourDayPrice: row.fourDayPrice,
+          notes: row.notes,
+          sourceRowNumber: row.sourceRowNumber,
           created_at: now,
-          isActive: row.isActive,
-        },
-      },
-      upsert: true,
-    },
+          updated_at: now,
   }));
 
-  const result = await collection.bulkWrite(operations, { ordered: false });
+  const result = rows.length
+    ? await collection.insertMany(documents, { ordered: false })
+    : { insertedCount: 0 };
   const totalInCollection = await collection.countDocuments();
 
   console.log(
     JSON.stringify(
       {
         seededRows: rows.length,
-        matched: result.matchedCount,
-        modified: result.modifiedCount,
-        upserted: result.upsertedCount,
+        inserted: result.insertedCount,
         totalInCollection,
       },
       null,

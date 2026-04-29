@@ -3,6 +3,7 @@ import {
   buildCombinedFinalValue,
   buildServiceFinalValue,
   DealServiceInput,
+  EMPTY_READ_ONLY_SERVICE_DETAILS,
   parseFlavorEnhancementsValue,
   PersistedDealService,
 } from "@/lib/deal-services";
@@ -127,7 +128,72 @@ function mapServiceOrderRecord(
       subCategory,
       baseServiceName,
       flavors: flavorEnhancements.flavors,
+      serviceSpecificEnhancements:
+        flavorEnhancements.serviceSpecificEnhancements,
     });
+  const customField = record.custom_field ?? {};
+  const catalogDetails = {
+    ...EMPTY_READ_ONLY_SERVICE_DETAILS,
+    status: toStringValue(customField[FRESHSALES_SERVICE_ORDER_FIELDS.status]),
+    catalogServiceId: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.catalogServiceId],
+    ),
+    universalPlatform: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.universalPlatform],
+    ),
+    aui: toStringValue(customField[FRESHSALES_SERVICE_ORDER_FIELDS.aui]),
+    updatedMainMachine: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.updatedMainMachine],
+    ),
+    updatedMachine2: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.updatedMachine2],
+    ),
+    updatedMachine3: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.updatedMachine3],
+    ),
+    groceryYN: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.groceryYN],
+    ),
+    groceryNeeds: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.groceryNeeds],
+    ),
+    kitchenPrepNeededYN: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.kitchenPrepNeededYN],
+    ),
+    kitchenPrepItems: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.kitchenPrepItems],
+    ),
+    carryThroughYN: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.carryThroughYN],
+    ),
+    carryThroughItems: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.carryThroughItems],
+    ),
+    orderItemsFromCC: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.orderItemsFromCC],
+    ),
+    ccItems: toStringValue(customField[FRESHSALES_SERVICE_ORDER_FIELDS.ccItems]),
+    strategicAttributes: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.strategicAttributes],
+    ),
+    exclusivityKeys: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.exclusivityKeys],
+    ),
+    staff: toStringValue(customField[FRESHSALES_SERVICE_ORDER_FIELDS.staff]),
+    preSupplyTier: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.preSupplyTier],
+    ),
+    twoDayPrice: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.twoDayPrice],
+    ),
+    threeDayPrice: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.threeDayPrice],
+    ),
+    fourDayPrice: toStringValue(
+      customField[FRESHSALES_SERVICE_ORDER_FIELDS.fourDayPrice],
+    ),
+    notes: toStringValue(customField[FRESHSALES_SERVICE_ORDER_FIELDS.notes]),
+  };
 
   return {
     recordId: record.id,
@@ -170,6 +236,7 @@ function mapServiceOrderRecord(
       price: toNumberValue(
         getCustomFieldValue(record, FRESHSALES_SERVICE_ORDER_FIELDS.price),
       ),
+      catalogDetails,
       finalValue,
       createdAt: toIsoString(record.created_at),
       updatedAt: toIsoString(record.updated_at),
