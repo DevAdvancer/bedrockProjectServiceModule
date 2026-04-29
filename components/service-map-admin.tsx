@@ -171,6 +171,18 @@ function createMapMutationPayload(
   form: FormState | ServiceCatalogRow,
   isActiveOverride?: boolean,
 ) {
+  const normalizedType = form.itemType.trim().toLowerCase();
+  const flavorEnhancementItem = form.flavorEnhancementItem.trim();
+  const derivedFlavors =
+    normalizedType.includes("flavor") && flavorEnhancementItem
+      ? flavorEnhancementItem
+      : "";
+  const derivedEnhancements =
+    (normalizedType.includes("enh") || normalizedType.includes("modifier")) &&
+    flavorEnhancementItem
+      ? flavorEnhancementItem
+      : "";
+
   if ("baseServiceName" in form && Array.isArray(form.flavors)) {
     return {
       sortOrder: String(form.sortOrder),
@@ -183,8 +195,11 @@ function createMapMutationPayload(
       baseServiceName: form.baseServiceName,
       itemType: form.itemType,
       flavorEnhancementItem: form.flavorEnhancementItem,
-      flavors: form.flavors,
-      serviceSpecificEnhancements: form.serviceSpecificEnhancements,
+      flavors: form.flavors.length > 0 ? form.flavors : derivedFlavors,
+      serviceSpecificEnhancements:
+        form.serviceSpecificEnhancements.length > 0
+          ? form.serviceSpecificEnhancements
+          : derivedEnhancements,
       aui: form.aui,
       groceryYN: form.groceryYN,
       groceryNeeds: form.groceryNeeds,
@@ -211,6 +226,9 @@ function createMapMutationPayload(
 
   return {
     ...form,
+    flavors: form.flavors.trim() || derivedFlavors,
+    serviceSpecificEnhancements:
+      form.serviceSpecificEnhancements.trim() || derivedEnhancements,
     sortOrder:
       typeof form.sortOrder === "string"
         ? form.sortOrder.trim()
@@ -667,26 +685,10 @@ export default function ServiceMapAdmin() {
                 placeholder="Flavor, Enh., Modifier"
               />
               <Field
-                label="Flavor / Enhancement Item"
+                label="Flavor / Enhancement"
                 value={form.flavorEnhancementItem}
                 onChange={(value) => updateField("flavorEnhancementItem", value)}
                 placeholder="Granola Bites"
-              />
-              <Field
-                label="Flavors"
-                value={form.flavors}
-                onChange={(value) => updateField("flavors", value)}
-                placeholder="Cold Brew, Nitro"
-                multiline
-              />
-              <Field
-                label="Enhancements"
-                value={form.serviceSpecificEnhancements}
-                onChange={(value) =>
-                  updateField("serviceSpecificEnhancements", value)
-                }
-                placeholder="CRM, Training"
-                multiline
               />
               <Field
                 label="AUI"
@@ -944,10 +946,9 @@ export default function ServiceMapAdmin() {
                       label="Service Order ID"
                       value={map.serviceOrderId}
                     />
-                    <MapValue label="Flavors" value={formatCsv(map.flavors)} />
                     <MapValue
-                      label="Enhancements"
-                      value={formatCsv(map.serviceSpecificEnhancements)}
+                      label="Flavor / Enhancement"
+                      value={map.flavorEnhancementItem}
                     />
                     <MapValue label="AUI" value={formatCsv(map.aui)} />
                     <MapValue

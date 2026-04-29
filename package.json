@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "generate:catalog": "node scripts/generate-service-catalog.mjs",
+    "export:latestdata-seed": "node scripts/export-latestdata-seed.mjs",
     "seed:service-maps": "node scripts/seed-service-maps.mjs"
   },
   "dependencies": {

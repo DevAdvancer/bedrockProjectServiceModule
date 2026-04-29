@@ -48,6 +48,7 @@ type FlavorEnhancementSections = {
 export const EMPTY_READ_ONLY_SERVICE_DETAILS: ReadOnlyServiceDetailValues = {
   status: "",
   catalogServiceId: "",
+  itemType: "",
   universalPlatform: "",
   aui: "",
   updatedMainMachine: "",
@@ -109,23 +110,7 @@ export function buildFlavorEnhancementsValue(
 ) {
   const normalizedFlavors = normalizeStringArray(flavors);
   const normalizedEnhancements = normalizeStringArray(serviceSpecificEnhancements);
-  const sections: string[] = [];
-
-  if (normalizedFlavors.length > 0) {
-    sections.push("Flavors:");
-    sections.push(...normalizedFlavors.map((value) => `- ${value}`));
-  }
-
-  if (normalizedEnhancements.length > 0) {
-    if (sections.length > 0) {
-      sections.push("");
-    }
-
-    sections.push("Enhancements:");
-    sections.push(...normalizedEnhancements.map((value) => `- ${value}`));
-  }
-
-  return sections.join("\n").trim();
+  return arrayToCsv([...normalizedFlavors, ...normalizedEnhancements]);
 }
 
 export function parseFlavorEnhancementsValue(

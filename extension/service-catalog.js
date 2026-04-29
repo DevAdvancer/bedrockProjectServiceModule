@@ -26,6 +26,14 @@ function parseCatalogValue(value) {
 }
 
 function normalizeRow(row, index) {
+  const itemType = normalizeText(row?.itemType);
+  const flavorEnhancementItem = normalizeText(row?.flavorEnhancementItem);
+  const normalizedItemType = itemType.toLowerCase();
+  const flavors = parseCatalogValue(row?.flavors);
+  const serviceSpecificEnhancements = parseCatalogValue(
+    row?.serviceSpecificEnhancements,
+  );
+
   return {
     id: normalizeText(row?.id),
     sortOrder: Number.isFinite(row?.sortOrder) ? row.sortOrder : index + 1,
@@ -36,12 +44,20 @@ function normalizeRow(row, index) {
     subCategory: normalizeText(row?.subCategory),
     universalPlatform: normalizeText(row?.universalPlatform),
     baseServiceName: normalizeText(row?.baseServiceName),
-    itemType: normalizeText(row?.itemType),
-    flavorEnhancementItem: normalizeText(row?.flavorEnhancementItem),
-    flavors: parseCatalogValue(row?.flavors),
-    serviceSpecificEnhancements: parseCatalogValue(
-      row?.serviceSpecificEnhancements,
-    ),
+    itemType,
+    flavorEnhancementItem,
+    flavors: flavors.length > 0
+      ? flavors
+      : normalizedItemType.includes("flavor") && flavorEnhancementItem
+        ? [flavorEnhancementItem]
+        : [],
+    serviceSpecificEnhancements: serviceSpecificEnhancements.length > 0
+      ? serviceSpecificEnhancements
+      : (normalizedItemType.includes("enh") ||
+            normalizedItemType.includes("modifier")) &&
+          flavorEnhancementItem
+        ? [flavorEnhancementItem]
+        : [],
     aui: parseCatalogValue(row?.aui),
     groceryYN: normalizeText(row?.groceryYN),
     groceryNeeds: normalizeText(row?.groceryNeeds),
@@ -293,6 +309,7 @@ function getReadOnlyServiceDetails(category, subCategory, universalPlatform, bas
   return [
     { label: "Status", value: uniqueJoined(row => row.status) },
     { label: "Service ID", value: uniqueJoined(row => row.serviceOrderId) },
+    { label: "Type", value: uniqueJoined(row => row.itemType) },
     { label: "Universal Platform", value: uniqueJoined(row => row.universalPlatform) },
     { label: "AUI", value: uniqueJoined(row => row.aui) },
     { label: "Main Machine", value: uniqueJoined(row => row.updatedMainMachine) },

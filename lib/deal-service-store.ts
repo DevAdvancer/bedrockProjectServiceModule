@@ -137,7 +137,8 @@ function mapServiceOrderRecord(
     status: toStringValue(customField[FRESHSALES_SERVICE_ORDER_FIELDS.status]),
     catalogServiceId: toStringValue(
       customField[FRESHSALES_SERVICE_ORDER_FIELDS.catalogServiceId],
-    ),
+    ) || serviceOrderId,
+    itemType: toStringValue(customField[FRESHSALES_SERVICE_ORDER_FIELDS.type]),
     universalPlatform: toStringValue(
       customField[FRESHSALES_SERVICE_ORDER_FIELDS.universalPlatform],
     ),
@@ -198,7 +199,7 @@ function mapServiceOrderRecord(
   return {
     recordId: record.id,
     service: {
-      id: serviceOrderId,
+      id: String(record.id),
       dealId,
       category,
       subCategory,
@@ -266,25 +267,20 @@ async function getCombinedFinalValueForDeal(dealId: string) {
   );
 }
 
-async function findServiceOrderRecordByServiceId(id: string) {
+async function findServiceOrderRecordById(id: string) {
   const records = await listServiceOrderRecords();
-  const existingRecord = records.find((record) => record.service.id === id);
+  const existingRecord = records.find(
+    (record) =>
+      String(record.recordId) === id ||
+      record.service.id === id ||
+      record.service.catalogDetails.catalogServiceId === id,
+  );
 
   if (!existingRecord) {
     throw new HttpError(404, "Service record not found.");
   }
 
   return existingRecord;
-}
-
-async function assertServiceOrderIdIsAvailable(id: string) {
-  const records = await listServiceOrderRecords();
-  if (records.some((record) => record.service.id === id)) {
-    throw new HttpError(
-      409,
-      "That service ID already exists. Please create a new service block.",
-    );
-  }
 }
 
 async function resolveDealReference(dealReference: string) {
@@ -353,11 +349,16 @@ export async function createDealService(
 ) {
   const deal = await getFreshsalesDeal(service.dealId);
   const dealName = deal.name?.trim() || service.dealId;
-  const id = preferredId?.trim() || randomUUID();
+  const serviceOrderId =
+    service.catalogDetails.catalogServiceId.trim() ||
+    preferredId?.trim() ||
+    randomUUID();
 
-  await assertServiceOrderIdIsAvailable(id);
-
-  const createdRecord = await createFreshsalesServiceOrder(id, service, dealName);
+  const createdRecord = await createFreshsalesServiceOrder(
+    serviceOrderId,
+    service,
+    dealName,
+  );
   const mappedRecord = mapServiceOrderRecord(createdRecord);
 
   return {
@@ -367,13 +368,17 @@ export async function createDealService(
 }
 
 export async function updateDealService(id: string, service: DealServiceInput) {
-  const existingRecord = await findServiceOrderRecordByServiceId(id);
+  const existingRecord = await findServiceOrderRecordById(id);
   const deal = await getFreshsalesDeal(service.dealId);
   const dealName = deal.name?.trim() || service.dealId;
+  const serviceOrderId =
+    service.catalogDetails.catalogServiceId.trim() ||
+    existingRecord.service.catalogDetails.catalogServiceId ||
+    id;
 
   const updatedRecord = await updateFreshsalesServiceOrder(
     existingRecord.recordId,
-    id,
+    serviceOrderId,
     service,
     dealName,
   );
@@ -386,7 +391,7 @@ export async function updateDealService(id: string, service: DealServiceInput) {
 }
 
 export async function deleteDealService(id: string) {
-  const existingRecord = await findServiceOrderRecordByServiceId(id);
+  const existingRecord = await findServiceOrderRecordById(id);
 
   await deleteFreshsalesServiceOrder(existingRecord.recordId);
 

@@ -1,5 +1,4 @@
 import {
-  arrayToCsv,
   buildFlavorEnhancementsValue,
   buildServiceFinalValue,
   DealSearchResult,
@@ -172,9 +171,11 @@ function buildFreshsalesProductDescription(service: DealServiceInput) {
     `Sub Category: ${service.subCategory}`,
     `Universal Platform: ${catalog.universalPlatform || service.universalPlatform}`,
     `Base Service Name: ${service.baseServiceName}`,
-    `Flavors: ${arrayToCsv(service.flavors) || "None"}`,
-    `Service-Specific Enhancements: ${
-      arrayToCsv(service.serviceSpecificEnhancements) || "None"
+    `Flavor / Enhancement: ${
+      buildFlavorEnhancementsValue(
+        service.flavors,
+        service.serviceSpecificEnhancements,
+      ) || "None"
     }`,
     `AUI: ${catalog.aui || service.aui || "None"}`,
     `Updated Main Machine: ${
@@ -214,9 +215,12 @@ function buildFreshsalesProductPayload(serviceId: string, service: DealServiceIn
         [FRESHSALES_PRODUCT_CUSTOM_FIELDS.catalogServiceId]:
           catalog.catalogServiceId,
         [FRESHSALES_PRODUCT_CUSTOM_FIELDS.status]: catalog.status,
-        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.flavors]: arrayToCsv(service.flavors),
-        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.serviceSpecificEnhancements]:
-          arrayToCsv(service.serviceSpecificEnhancements),
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.type]: catalog.itemType,
+        [FRESHSALES_PRODUCT_CUSTOM_FIELDS.flavorEnhancements]:
+          buildFlavorEnhancementsValue(
+            service.flavors,
+            service.serviceSpecificEnhancements,
+          ),
         [FRESHSALES_PRODUCT_CUSTOM_FIELDS.aui]: catalog.aui || service.aui,
         [FRESHSALES_PRODUCT_CUSTOM_FIELDS.updatedMainMachine]:
           catalog.updatedMainMachine || service.updatedMainMachine,
@@ -460,6 +464,7 @@ function buildServiceOrderPayload(
         [FRESHSALES_SERVICE_ORDER_FIELDS.catalogServiceId]:
           catalog.catalogServiceId,
         [FRESHSALES_SERVICE_ORDER_FIELDS.status]: catalog.status,
+        [FRESHSALES_SERVICE_ORDER_FIELDS.type]: catalog.itemType,
         [FRESHSALES_SERVICE_ORDER_FIELDS.serviceCategory]: service.category,
         [FRESHSALES_SERVICE_ORDER_FIELDS.serviceSubCategory]: service.subCategory,
         [FRESHSALES_SERVICE_ORDER_FIELDS.baseServiceName]:

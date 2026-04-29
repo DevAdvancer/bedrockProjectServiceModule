@@ -91,6 +91,7 @@ export type BaseServiceSelectionOption = {
 export type ReadOnlyServiceDetailValues = {
   status: string;
   catalogServiceId: string;
+  itemType: string;
   universalPlatform: string;
   aui: string;
   updatedMainMachine: string;
@@ -162,6 +163,14 @@ function normalizeCatalogRow(
   row: RawServiceCatalogRow,
   index: number,
 ): ServiceCatalogRow {
+  const itemType = normalizeText(row.itemType ?? "");
+  const flavorEnhancementItem = normalizeText(row.flavorEnhancementItem ?? "");
+  const normalizedItemType = itemType.toLowerCase();
+  const flavors = parseCatalogValue(row.flavors);
+  const serviceSpecificEnhancements = parseCatalogValue(
+    row.serviceSpecificEnhancements,
+  );
+
   return {
     sortOrder:
       typeof row.rowNumber === "number" && Number.isFinite(row.rowNumber)
@@ -174,12 +183,22 @@ function normalizeCatalogRow(
     subCategory: normalizeText(row.subCategory ?? ""),
     universalPlatform: normalizeText(row.universalPlatform ?? ""),
     baseServiceName: normalizeText(row.baseServiceName ?? ""),
-    itemType: normalizeText(row.itemType ?? ""),
-    flavorEnhancementItem: normalizeText(row.flavorEnhancementItem ?? ""),
-    flavors: parseCatalogValue(row.flavors),
-    serviceSpecificEnhancements: parseCatalogValue(
-      row.serviceSpecificEnhancements,
-    ),
+    itemType,
+    flavorEnhancementItem,
+    flavors:
+      flavors.length > 0
+        ? flavors
+        : normalizedItemType.includes("flavor") && flavorEnhancementItem
+          ? [flavorEnhancementItem]
+          : [],
+    serviceSpecificEnhancements:
+      serviceSpecificEnhancements.length > 0
+        ? serviceSpecificEnhancements
+        : (normalizedItemType.includes("enh") ||
+              normalizedItemType.includes("modifier")) &&
+            flavorEnhancementItem
+          ? [flavorEnhancementItem]
+          : [],
     aui: parseCatalogValue(row.aui),
     groceryYN: normalizeText(row.groceryYN ?? ""),
     groceryNeeds: normalizeText(row.groceryNeeds ?? ""),
@@ -624,6 +643,7 @@ export function getReadOnlyServiceDetailValues(
   return {
     status: uniqueJoined((row) => row.status),
     catalogServiceId: uniqueJoined((row) => row.serviceOrderId),
+    itemType: uniqueJoined((row) => row.itemType),
     universalPlatform: uniqueJoined((row) => row.universalPlatform),
     aui: uniqueJoined((row) => row.aui),
     updatedMainMachine: uniqueJoined((row) => row.updatedMainMachine),
@@ -674,6 +694,7 @@ export function getReadOnlyServiceDetails(
   return [
     { label: "Status", value: details.status },
     { label: "Service ID", value: details.catalogServiceId },
+    { label: "Type", value: details.itemType },
     { label: "Universal Platform", value: details.universalPlatform },
     { label: "AUI", value: details.aui },
     { label: "Main Machine", value: details.updatedMainMachine },

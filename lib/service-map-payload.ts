@@ -130,7 +130,7 @@ export function parseServiceMapPayload(
     return {
       success: false as const,
       error:
-        "Flavors or Service-Specific Enhancements must contain at least one comma-separated value.",
+        "Flavor / Enhancement must contain at least one value.",
     };
   }
 

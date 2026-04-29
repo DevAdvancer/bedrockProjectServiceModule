@@ -6,6 +6,7 @@ export const FRESHSALES_SERVICE_ORDER_FIELDS = {
   dealName: "cf_deal_name",
   catalogServiceId: "cf_catalog_service_id",
   status: "cf_services_status",
+  type: "cf_type",
   serviceCategory: "cf_service_category",
   serviceSubCategory: "cf_service_sub_category",
   baseServiceName: "cf_base_service_name",

@@ -3,14 +3,12 @@
 import Link from "next/link";
 import {
   startTransition,
-  useDeferredValue,
   useEffect,
   useEffectEvent,
   useRef,
   useState,
 } from "react";
 import {
-  buildCombinedFinalValue,
   buildServiceFinalValue,
   DealSearchResult,
   EMPTY_READ_ONLY_SERVICE_DETAILS,
@@ -75,8 +73,6 @@ type SelectOption = {
   value: string;
   label: string;
 };
-
-const DISPLAY_CURRENCY_CODE = "USD";
 
 function toSelectOptions(values: string[]): SelectOption[] {
   return values.map((value) => ({
@@ -472,8 +468,7 @@ function ServiceCard({
   onCategoryChange,
   onSubCategoryChange,
   onBaseServiceSelect,
-  onFlavorsChange,
-  onEnhancementsChange,
+  onFlavorEnhancementChange,
   onSave,
   onDelete,
 }: {
@@ -484,8 +479,7 @@ function ServiceCard({
   onCategoryChange: (serviceId: string, value: string) => void;
   onSubCategoryChange: (serviceId: string, value: string) => void;
   onBaseServiceSelect: (serviceId: string, value: string) => void;
-  onFlavorsChange: (serviceId: string, value: string[]) => void;
-  onEnhancementsChange: (serviceId: string, value: string[]) => void;
+  onFlavorEnhancementChange: (serviceId: string, value: string[]) => void;
   onSave: (serviceId: string) => void;
   onDelete: (serviceId: string) => void;
 }) {
@@ -508,7 +502,10 @@ function ServiceCard({
     service.subCategory,
     service.universalPlatform,
     service.baseServiceName,
-    service.flavors,
+    [],
+  );
+  const flavorEnhancementOptions = Array.from(
+    new Set([...flavorOptions, ...enhancementOptions.filter((item) => item !== "None")]),
   );
   const baseServiceSelectionKey = service.baseServiceName
     ? buildBaseServiceSelectionKey(
@@ -518,8 +515,6 @@ function ServiceCard({
         service.baseServiceName,
       )
     : "";
-  const enhancementFieldReady = Boolean(service.baseServiceName) &&
-    (service.flavors.length > 0 || flavorOptions.length === 0);
   const readOnlyDetails = getReadOnlyServiceDetails(
     serviceMaps,
     service.category,
@@ -621,22 +616,16 @@ function ServiceCard({
             placeholder="Select a base service"
             disabled={!service.subCategory}
           />
-          {service.baseServiceName && flavorOptions.length > 0 ? (
+          {service.baseServiceName ? (
             <MultiSelectField
-              label="Flavors"
-              value={service.flavors}
-              onChange={(value) => onFlavorsChange(service.id, value)}
-              options={flavorOptions}
-              placeholder="Select one or more flavors"
-            />
-          ) : null}
-          {enhancementFieldReady ? (
-            <MultiSelectField
-              label="Service-Specific Enhancements"
-              value={service.serviceSpecificEnhancements}
-              onChange={(value) => onEnhancementsChange(service.id, value)}
-              options={enhancementOptions}
-              placeholder="Select enhancements"
+              label="Flavor / Enhancement"
+              value={[
+                ...service.flavors,
+                ...service.serviceSpecificEnhancements,
+              ]}
+              onChange={(value) => onFlavorEnhancementChange(service.id, value)}
+              options={flavorEnhancementOptions}
+              placeholder="Select one or more items"
             />
           ) : null}
         </div>
@@ -907,14 +896,33 @@ export default function DealServiceDashboard({
     });
   }
 
-  function handleFlavorsChange(serviceId: string, value: string[]) {
+  function handleFlavorEnhancementChange(serviceId: string, value: string[]) {
     updateServiceState(serviceId, (service) =>
       markDirty(
         syncRowDerivedFields(
           {
             ...service,
-            flavors: value,
-            serviceSpecificEnhancements: [],
+            flavors: value.filter((option) =>
+              getFlavorOptions(
+                serviceMaps,
+                service.category,
+                service.subCategory,
+                service.universalPlatform,
+                service.baseServiceName,
+              ).includes(option),
+            ),
+            serviceSpecificEnhancements: value.filter((option) =>
+              getEnhancementOptions(
+                serviceMaps,
+                service.category,
+                service.subCategory,
+                service.universalPlatform,
+                service.baseServiceName,
+                [],
+              )
+                .filter((item) => item !== "None")
+                .includes(option),
+            ),
             aui: "",
             updatedMainMachine: "",
             updatedMachine2: "",
@@ -923,15 +931,6 @@ export default function DealServiceDashboard({
           serviceMaps,
         ),
       ),
-    );
-  }
-
-  function handleEnhancementsChange(serviceId: string, value: string[]) {
-    updateServiceState(serviceId, (service) =>
-      markDirty({
-        ...service,
-        serviceSpecificEnhancements: value,
-      }),
     );
   }
 
@@ -1051,8 +1050,6 @@ export default function DealServiceDashboard({
       );
     }
   }
-
-  const draftCombinedValue = buildCombinedFinalValue(services);
 
   return (
     <main className="min-h-screen bg-[#fdf9f6]">
@@ -1219,8 +1216,7 @@ export default function DealServiceDashboard({
                 onCategoryChange={handleCategoryChange}
                 onSubCategoryChange={handleSubCategoryChange}
                 onBaseServiceSelect={handleBaseServiceSelect}
-                onFlavorsChange={handleFlavorsChange}
-                onEnhancementsChange={handleEnhancementsChange}
+                onFlavorEnhancementChange={handleFlavorEnhancementChange}
                 onSave={(cardId) => void handleSaveService(cardId)}
                 onDelete={(cardId) => void handleDeleteService(cardId)}
               />

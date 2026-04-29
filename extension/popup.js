@@ -1,7 +1,7 @@
 // CrepesALatte Service Studio — Chrome Extension Popup
 // Ported from components/deal-service-dashboard.tsx (React → vanilla JS)
 
-const API_BASE = "https://bedrock-project-service-module.vercel.app"
+const API_BASE = "https://bedrock-project-service-module.vercel.app/"
 const SC = window.ServiceCatalog;
 const ADMIN_ID = "admin";
 const ADMIN_PASSWORD = "CAL2026!";
@@ -268,6 +268,17 @@ function closeSettingsCreateForm() {
   syncSettingsCreateUI();
 }
 function readSettingsCreatePayload() {
+  const itemType = normalizeText(settingsCreateItemTypeInput.value);
+  const flavorEnhancementItem = normalizeText(settingsCreateFlavorEnhancementItemInput.value);
+  const normalizedType = itemType.toLowerCase();
+  const derivedFlavors = normalizedType.includes("flavor") && flavorEnhancementItem
+    ? flavorEnhancementItem
+    : "";
+  const derivedEnhancements =
+    (normalizedType.includes("enh") || normalizedType.includes("modifier")) && flavorEnhancementItem
+      ? flavorEnhancementItem
+      : "";
+
   return {
     sortOrder: normalizeText(settingsCreateSortOrderInput.value),
     isActive: settingsCreateActiveInput.checked,
@@ -277,10 +288,11 @@ function readSettingsCreatePayload() {
     subCategory: normalizeText(settingsCreateSubCategoryInput.value),
     universalPlatform: normalizeText(settingsCreateUniversalPlatformInput.value),
     baseServiceName: normalizeText(settingsCreateBaseServiceNameInput.value),
-    itemType: normalizeText(settingsCreateItemTypeInput.value),
-    flavorEnhancementItem: normalizeText(settingsCreateFlavorEnhancementItemInput.value),
-    flavors: settingsCreateFlavorsInput.value,
-    serviceSpecificEnhancements: settingsCreateEnhancementsInput.value,
+    itemType,
+    flavorEnhancementItem,
+    flavors: settingsCreateFlavorsInput.value || derivedFlavors,
+    serviceSpecificEnhancements:
+      settingsCreateEnhancementsInput.value || derivedEnhancements,
     aui: settingsCreateAuiInput.value,
     groceryYN: normalizeText(settingsCreateGroceryYnInput.value),
     groceryNeeds: normalizeText(settingsCreateGroceryNeedsInput.value),
@@ -1121,7 +1133,7 @@ function buildFormFields(grid, s) {
       "Enter a platform", false, v => handleFieldChange(s.id, "universalPlatform", v)));
     grid.appendChild(createTextField("Base Service Name", s.baseServiceName,
       "Enter a base service name", false, v => handleFieldChange(s.id, "baseServiceName", v)));
-    grid.appendChild(createTextareaField("Flavor / Enhancements", getSelectedFlavorEnhancementValues(s).join(", "),
+    grid.appendChild(createTextareaField("Flavor / Enhancement", getSelectedFlavorEnhancementValues(s).join(", "),
       "Vanilla, Strawberry, Matcha", false,
       v => handleCustomFlavorEnhancementFieldChange(s.id, v)));
   } else {
@@ -1134,9 +1146,9 @@ function buildFormFields(grid, s) {
     grid.appendChild(createSelectField("Base Service Name", baseKey, baseOpts.map(o => ({ value: o.value, label: o.label })),
       "Select a base service", !s.subCategory, v => handleBaseServiceSelect(s.id, v)));
 
-  // Flavor / Enhancements
+  // Flavor / Enhancement
     if (s.baseServiceName) {
-      grid.appendChild(createMultiSelectField("Flavor / Enhancements",
+      grid.appendChild(createMultiSelectField("Flavor / Enhancement",
         getSelectedFlavorEnhancementValues(s), flavorEnhancementOptions,
         "Select one or more values", false, v => handleFlavorEnhancementChange(s.id, v)));
     }
@@ -1446,40 +1458,6 @@ function createMultiSelectField(label, value, options, placeholder, disabled, on
     wrap.appendChild(tags);
   }
 
-  group.appendChild(wrap);
-  return group;
-}
-
-function createNumberField(label, value, placeholder, disabled, onChange) {
-  const group = document.createElement("div");
-  group.className = "field-group";
-
-  const lbl = document.createElement("span");
-  lbl.className = "field-label";
-  lbl.textContent = label;
-  group.appendChild(lbl);
-
-  const wrap = document.createElement("div");
-  wrap.className = "number-field-wrap";
-
-  const currency = document.createElement("span");
-  currency.className = "currency";
-  currency.textContent = "$";
-
-  const input = document.createElement("input");
-  input.type = "number";
-  input.min = "0";
-  input.step = "0.01";
-  input.value = value ?? "";
-  input.placeholder = placeholder;
-  input.disabled = disabled;
-  input.addEventListener("input", () => {
-    const v = input.value.trim();
-    onChange(v ? Number(v) : null);
-  });
-
-  wrap.appendChild(currency);
-  wrap.appendChild(input);
   group.appendChild(wrap);
   return group;
 }
