@@ -23,11 +23,11 @@ npm run dev
 
 - MongoDB data is stored in the `deal_services` collection.
 - Each service is stored as an individual document with a UUID `id`.
-- Freshsales deal search uses `GET /crm-sandboxsales/api/search?q=...&include=deal`.
-- Freshsales product creation uses `POST /crm-sandboxsales/api/cpq/products`.
-- Freshsales product updates use `PUT /crm-sandboxsales/api/cpq/products/{product_id}`.
-- Freshsales product pricing is synced with `PUT /crm-sandboxsales/api/cpq/products/{product_id}?include=product_pricings`.
-- Freshsales deal-product sync uses `PUT /crm-sandboxsales/api/deals/{deal_id}?include=products`.
+- Freshsales deal search uses `GET /crmsales/api/search?q=...&include=deal`.
+- Freshsales product creation uses `POST /crmsales/api/cpq/products`.
+- Freshsales product updates use `PUT /crmsales/api/cpq/products/{product_id}`.
+- Freshsales product pricing is synced with `PUT /crmsales/api/cpq/products/{product_id}?include=product_pricings`.
+- Freshsales deal-product sync uses `PUT /crmsales/api/deals/{deal_id}?include=products`.
 - Every service row stores its own `price`, syncs a USD product price, and then attaches to the deal as a product line item with `quantity: 1`.
 - The selected Freshsales deal must also be in USD, or Freshsales will reject the product attachment.
 

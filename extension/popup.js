@@ -1,7 +1,8 @@
 // CrepesALatte Service Studio — Chrome Extension Popup
 // Ported from components/deal-service-dashboard.tsx (React → vanilla JS)
 
-const API_BASE = "https://bedrock-project-service-module.vercel.app/"
+// const API_BASE = "https://bedrock-project-service-module.vercel.app/"
+const API_BASE = "http://localhost:3000";
 const SC = window.ServiceCatalog;
 const ADMIN_ID = "admin";
 const ADMIN_PASSWORD = "CAL2026!";

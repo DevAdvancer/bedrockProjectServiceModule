@@ -283,7 +283,7 @@ function toProductPricingPayload(pricing: FreshsalesProductPricing) {
 
 async function getFreshsalesProduct(productId: number) {
   return freshsalesFetch<FreshsalesProductDetailsResponse>(
-    `/crm-sandbox/sales/api/cpq/products/${encodeURIComponent(
+    `/crm/sales/api/cpq/products/${encodeURIComponent(
       String(productId),
     )}?include=product_pricings`,
     {
@@ -323,7 +323,7 @@ async function syncFreshsalesProductUsdPricing(productId: number, unitPrice: num
         ];
 
   return freshsalesFetch(
-    `/crm-sandbox/sales/api/cpq/products/${encodeURIComponent(
+    `/crm/sales/api/cpq/products/${encodeURIComponent(
       String(productId),
     )}?include=product_pricings`,
     {
@@ -340,7 +340,7 @@ async function syncFreshsalesProductUsdPricing(productId: number, unitPrice: num
 
 export async function getFreshsalesDeal(dealId: string) {
   const dealDetails = await freshsalesFetch<FreshsalesDealDetailsResponse>(
-    `/crm-sandbox/sales/api/deals/${encodeURIComponent(dealId)}?include=currency`,
+    `/crm/sales/api/deals/${encodeURIComponent(dealId)}?include=currency`,
     {
       method: "GET",
     },
@@ -371,7 +371,7 @@ export async function searchFreshsalesDeals(query: string) {
   });
 
   const results = await freshsalesFetch<DealSearchResult[]>(
-    `/crm-sandbox/sales/api/search?${params.toString()}`,
+    `/crm/sales/api/search?${params.toString()}`,
     { method: "GET" },
   );
 
@@ -383,7 +383,7 @@ export async function createFreshsalesProduct(
   service: DealServiceInput,
 ) {
   const response = await freshsalesFetch<FreshsalesProductResponse>(
-    "/crm-sandbox/sales/api/cpq/products",
+    "/crm/sales/api/cpq/products",
     {
       method: "POST",
       body: JSON.stringify(buildFreshsalesProductPayload(serviceId, service)),
@@ -400,7 +400,7 @@ export async function updateFreshsalesProduct(
   service: DealServiceInput,
 ) {
   const response = await freshsalesFetch<FreshsalesProductResponse>(
-    `/crm-sandbox/sales/api/cpq/products/${encodeURIComponent(String(productId))}`,
+    `/crm/sales/api/cpq/products/${encodeURIComponent(String(productId))}`,
     {
       method: "PUT",
       body: JSON.stringify(buildFreshsalesProductPayload(serviceId, service)),
@@ -413,7 +413,7 @@ export async function updateFreshsalesProduct(
 
 export async function deleteFreshsalesProduct(productId: number) {
   return freshsalesFetch<boolean>(
-    `/crm-sandbox/sales/api/cpq/products/${encodeURIComponent(String(productId))}`,
+    `/crm/sales/api/cpq/products/${encodeURIComponent(String(productId))}`,
     {
       method: "DELETE",
     },
@@ -427,7 +427,7 @@ export async function syncFreshsalesDealProducts(
   await getFreshsalesDealAndAssertUsd(dealId);
 
   return freshsalesFetch(
-    `/crm-sandbox/sales/api/deals/${encodeURIComponent(dealId)}?include=products`,
+    `/crm/sales/api/deals/${encodeURIComponent(dealId)}?include=products`,
     {
       method: "PUT",
       body: JSON.stringify({
@@ -444,7 +444,7 @@ export async function syncFreshsalesDealProducts(
 }
 
 function getServiceOrderViewId() {
-  return process.env.FRESHSALES_SERVICE_ORDER_VIEW_ID?.trim() || "127026452340";
+  return process.env.FRESHSALES_SERVICE_ORDER_VIEW_ID?.trim() || "102000012268";
 }
 
 function buildServiceOrderPayload(
@@ -528,7 +528,7 @@ export async function listFreshsalesServiceOrders() {
       sort_type: "asc",
     });
     const response = await freshsalesFetch<FreshsalesServiceOrderListResponse>(
-      `/crm-sandbox/sales/api/custom_module/${encodeURIComponent(
+      `/crm/sales/api/custom_module/${encodeURIComponent(
         FRESHSALES_SERVICE_ORDER_ENTITY_NAME,
       )}/view/${encodeURIComponent(viewId)}?${params.toString()}`,
       {
@@ -552,7 +552,7 @@ export async function createFreshsalesServiceOrder(
   dealName: string,
 ) {
   const response = await freshsalesFetch<FreshsalesServiceOrderRecordResponse>(
-    `/crm-sandbox/sales/api/custom_module/${encodeURIComponent(
+    `/crm/sales/api/custom_module/${encodeURIComponent(
       FRESHSALES_SERVICE_ORDER_ENTITY_NAME,
     )}`,
     {
@@ -571,7 +571,7 @@ export async function updateFreshsalesServiceOrder(
   dealName: string,
 ) {
   const response = await freshsalesFetch<FreshsalesServiceOrderRecordResponse>(
-    `/crm-sandbox/sales/api/custom_module/${encodeURIComponent(
+    `/crm/sales/api/custom_module/${encodeURIComponent(
       FRESHSALES_SERVICE_ORDER_ENTITY_NAME,
     )}/${encodeURIComponent(String(recordId))}`,
     {
@@ -585,7 +585,7 @@ export async function updateFreshsalesServiceOrder(
 
 export async function deleteFreshsalesServiceOrder(recordId: string | number) {
   return freshsalesFetch<{ message?: string }>(
-    `/crm-sandbox/sales/api/custom_module/${encodeURIComponent(
+    `/crm/sales/api/custom_module/${encodeURIComponent(
       FRESHSALES_SERVICE_ORDER_ENTITY_NAME,
     )}/${encodeURIComponent(String(recordId))}`,
     {
